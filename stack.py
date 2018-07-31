@@ -18,7 +18,7 @@ def align_uavsar_images(image_list):
     # Grab each pair of (earlier date, later date)
     # sorted_pairs = list(itertools.combinations(sorted_by_date, 2))
     loaded_imgs = [insar.sario.load(u.filename) for u in sorted_by_date]
-    loaded_imgs = crop_to_smallest(loaded_imgs)
+    loaded_imgs = insar.utils.crop_to_smallest(loaded_imgs)
 
     first_ann = sorted_by_date[0].ann_data
     first_img = loaded_imgs[0]
@@ -34,7 +34,7 @@ def make_uavsar_time_diffs(image_list):
     aligned_images = align_uavsar_images(image_list)
     # Mask out the zeros so we don't divide by zero
     masked_images = [np.ma.masked_equal(im, 0) for im in aligned_images]
-    return [db(im / masked_images[0]) for im in masked_images[1:]]
+    return [insar.utils.db(im / masked_images[0]) for im in masked_images[1:]]
 
 
 def plot_uavsar_time_diffs(image_list):
