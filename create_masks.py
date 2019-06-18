@@ -25,8 +25,7 @@ from scipy.ndimage.measurements import variance
 # from skimage.morphology import erosion
 # from skimage.morphology import disk
 
-from insar import sario
-from insar import utils
+from apertools import sario, utils
 
 
 # TODO: figure out better module to put this function
@@ -77,19 +76,20 @@ def save(filepath, mask, downsample=0):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("filename", type=str, help="Specify the input UAVSAR filename")
-    parser.add_argument(
-        "--threshold",
-        '-t',
-        type=float,
-        default=0.002,
-        help="Threshold of magnitude for water segmenting")
-    parser.add_argument(
-        "--downsample", '-d', type=int, default=0, help="Factor to shrink final outputs by")
-    parser.add_argument(
-        "--despeckle",
-        action="store_true",
-        default=False,
-        help="Remove speckles from mask with morphological operations.")
+    parser.add_argument("--threshold",
+                        '-t',
+                        type=float,
+                        default=0.002,
+                        help="Threshold of magnitude for water segmenting")
+    parser.add_argument("--downsample",
+                        '-d',
+                        type=int,
+                        default=0,
+                        help="Factor to shrink final outputs by")
+    parser.add_argument("--despeckle",
+                        action="store_true",
+                        default=False,
+                        help="Remove speckles from mask with morphological operations.")
     args = parser.parse_args()
 
     filepath = os.path.expanduser(args.filename)
