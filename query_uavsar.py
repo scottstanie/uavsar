@@ -1,5 +1,6 @@
 import argparse
 from datetime import datetime
+import os
 import subprocess
 from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor
@@ -67,6 +68,10 @@ def find_data_urls(
     verbose=True,
     **kwargs,
 ):
+    if url_file and os.path.exists(url_file):
+        print(f"Found existing {url_file} to read from.")
+        with open(url_file) as f:
+            return f.read().splitlines()
 
     product_list = find_nisar_products(
         flight_line,
@@ -86,7 +91,7 @@ def find_data_urls(
     
     if url_file:
         print(f"Writing urls to {url_file}")
-        with open(url_file) as f:
+        with open(url_file, "w") as f:
             f.write("\n".join(url_list))
     else:
         print("\n".join(url_list))
