@@ -4,7 +4,8 @@ from html.parser import HTMLParser
 # Filetype of real or complex depends on the polarization for .grd, .mlc
 REAL_POLS = ("HHHH", "HVHV", "VVVV")
 COMPLEX_POLS = ("HHHV", "HHVV", "HVVV")
-POLARIZATIONS = REAL_POLS + COMPLEX_POLS
+CROSS_POLARIZATIONS = REAL_POLS + COMPLEX_POLS
+SINGLE_POLARIZATIONS = ("HH", "HV", "VH", "VV")
 
 
 class Base(object):

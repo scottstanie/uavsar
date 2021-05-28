@@ -11,7 +11,7 @@ import parsers
 BASE_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/data.pl?{params}"
 
 # DOWNLOAD_URL = "https://downloaduav.jpl.nasa.gov/Release2{char}/{product}/{data}"
-# ^^ this gets redirected to...
+# ^^ this gets redirected to the following:
 DOWNLOAD_URL = "https://uavsar.jpl.nasa.gov/Release2{char}/{product}/{data}"
 # e.g., SanAnd_23511_14068_001_140529_L090_CX_02/SanAnd_23511_14068_001_140529_L090_CX_143_02.h5
 # Not sure what possible chars are... test a-z
@@ -24,6 +24,9 @@ INFO_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName={product}"
 DATE_FMT = "%y%m%d"
 MODE_CHOICES_H5 = ["129", "138", "143"]
 MODE_CHOICES = [num + ab for num in MODE_CHOICES_H5 for ab in ["A", "B"]]
+
+# These files have no polarization in file name (e.g. only L090, not L090VV)
+NO_POL_FILETYPES = ("ann", "inc", "flat.inc", "slope", "rtc", "hgt", "kmz", "h5")
 
 # default query params
 EARLIEST = datetime(2008, 1, 1)
@@ -99,12 +102,13 @@ def find_data_urls(
 
 
 def _check_letters(product, data):
-    print(f"searching {product}")
+    print(f"searching {product = } , {data = }")
     # Just send a HEAD request until one returns a 200
     possible_urls = [
         DOWNLOAD_URL.format(product=product, data=data, char=testchar)
         for testchar in RELEASE_CHARS
     ]
+    # Search 10 at a time for correct url
     with ThreadPoolExecutor(max_workers=10) as executor:
         responses = executor.map(requests.head, possible_urls)
         codes = [resp.status_code for resp in responses]
@@ -119,18 +123,25 @@ def _check_letters(product, data):
 
 
 def _form_dataname(product, file_type=".slc", nisar_mode="129A", pol="VV"):
-    # the NISAR HDF5 files have no pol or A/B
-    file_type_nodot = file_type.replace(".", "")
-    if file_type_nodot == "h5":
-        nisar_mode = nisar_mode.upper().strip("AB")
+    # clear '.' if it was passed
+    file_type_nodot = file_type.lstrip(".").lower()
+    # Check / remove polarization, depending on file type
+    if file_type_nodot in NO_POL_FILETYPES:
         pol = ""
     elif file_type_nodot in ("mlc", "grd"):
-        if pol and pol not in parsers.POLARIZATIONS:
+        if pol and pol not in parsers.CROSS_POLARIZATIONS:
             raise ValueError(f"{pol} not a valid pol for .mlc, .grd files")
+    elif file_type_nodot == "slc":
+        if pol and pol not in parsers.SINGLE_POLARIZATIONS:
+            raise ValueError(f"{pol} not a valid pol for .slc "
+                             f"(choices = {parsers.SINGLE_POLARIZATIONS}")
 
-    # clear and period if it was passed
-    parsed = parsers.Uavsar(product)
+    if file_type_nodot == 'h5':
+        # only HDF5 files have the NISAR mode stripped, inlcudes both
+        nisar_mode = nisar_mode.upper().strip("AB")
+
     # pol is placed in the "band_squint_pol" field
+    parsed = parsers.Uavsar(product)
     if pol:
         bsp = parsed["band_squint_pol"]
         product = product.replace(bsp, bsp + pol)
