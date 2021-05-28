@@ -2,6 +2,7 @@ import argparse
 from datetime import datetime
 import subprocess
 from urllib.parse import urlencode
+from concurrent.futures import ThreadPoolExecutor
 
 import requests
 import parsers
@@ -9,8 +10,13 @@ import parsers
 # todo: no way to ask for 1 specific pol file, like ..._L090HHHH_CX_02.grd
 
 BASE_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/data.pl?{params}"
-DOWNLOAD_URL = "http://downloaduav.jpl.nasa.gov/Release2t/{product}/{data}"
+
+# DOWNLOAD_URL = "https://downloaduav.jpl.nasa.gov/Release2{char}/{product}/{data}"
+# ^^ this gets redirected to...
+DOWNLOAD_URL = "https://uavsar.jpl.nasa.gov/Release2{char}/{product}/{data}"
 # e.g., SanAnd_23511_14068_001_140529_L090_CX_02/SanAnd_23511_14068_001_140529_L090_CX_143_02.h5
+# Not sure what possible chars are...
+RELEASE_CHARS = ["m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x"]
 
 # info for product
 INFO_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName={product}"
@@ -68,13 +74,35 @@ def find_data_urls(
         verbose=verbose,
     )
     url_list = []
+    print(f"Finding urls for {len(product_list)} products")
     for product in product_list:
         data = _form_dataname(
             product, nisar_mode=nisar_mode, file_type=file_type, pol=pol
         )
-        url = DOWNLOAD_URL.format(product=product, data=data)
-        url_list.append(url)
+        url = _check_letters(product, data)
+        if url:
+            url_list.append(url)
     return url_list
+
+
+def _check_letters(product, data):
+    print(f'searching {product}')
+    # Just send a HEAD request until one returns a 200
+    possible_urls = [
+        DOWNLOAD_URL.format(product=product, data=data, char=testchar)
+        for testchar in RELEASE_CHARS
+    ]
+    with ThreadPoolExecutor(max_workers=10) as exec:
+        responses = exec.map(requests.head, possible_urls)
+        codes = [resp.status_code for resp in responses]
+        for url, status_code in zip(possible_urls, codes):
+            if status_code == 200:
+                return url
+        else:
+            print(
+                f"WARNING: no successful download url from {product}."
+                f"Check {INFO_URL.format(product=product)}"
+            )
 
 
 def _form_dataname(product, file_type=".slc", nisar_mode="129A", pol="VV"):
@@ -110,7 +138,7 @@ def find_nisar_products(
     )
     print(f"Querying {search_url}")
     response = requests.get(search_url)
-    lf = parsers.LinkFinder(verbose=verbose)
+    lf = parsers.LinkFinder(verbose=False)
     lf.feed(response.text)
     if verbose:
         for product in lf.products:
@@ -209,7 +237,8 @@ def cli():
     print(vars(args))
 
     if args.query_only:
-        find_data_urls(**vars(args))
+        urls = find_data_urls(**vars(args))
+        print("\n".join(urls))
     else:
         download(**vars(args))
 

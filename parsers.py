@@ -61,7 +61,6 @@ class Base(object):
         return self._get_field(item)
 
 
-
 class Uavsar(Base):
     """UAVSAR NISAR sample product data reference:
     https://uavsar.jpl.nasa.gov/science/documents/nisar-sample-products.html
