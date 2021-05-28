@@ -8,8 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 import requests
 import parsers
 
-# todo: no way to ask for 1 specific pol file, like ..._L090HHHH_CX_02.grd
-
 BASE_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/data.pl?{params}"
 
 # DOWNLOAD_URL = "https://downloaduav.jpl.nasa.gov/Release2{char}/{product}/{data}"
@@ -88,13 +86,12 @@ def find_data_urls(
         url = _check_letters(product, data)
         if url:
             url_list.append(url)
-    
+
     if url_file:
         print(f"Writing urls to {url_file}")
         with open(url_file, "w") as f:
-            f.write("\n".join(url_list))
-    else:
-        print("\n".join(url_list))
+            f.write("\n".join(url_list) + "\n")
+
     return url_list
 
 
@@ -105,17 +102,17 @@ def _check_letters(product, data):
         DOWNLOAD_URL.format(product=product, data=data, char=testchar)
         for testchar in RELEASE_CHARS
     ]
-    with ThreadPoolExecutor(max_workers=10) as exec:
-        responses = exec.map(requests.head, possible_urls)
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        responses = executor.map(requests.head, possible_urls)
         codes = [resp.status_code for resp in responses]
         for url, status_code in zip(possible_urls, codes):
             if status_code == 200:
                 return url
-        else:
-            print(
-                f"WARNING: no successful download url from {product}. "
-                f"Check {INFO_URL.format(product=product)}"
-            )
+        print(
+            f"WARNING: no successful download url from {product}. "
+            f"Check {INFO_URL.format(product=product)}"
+        )
+        return None
 
 
 def _form_dataname(product, file_type=".slc", nisar_mode="129A", pol="VV"):
@@ -255,7 +252,8 @@ def cli():
     print(vars(args))
 
     if args.query_only:
-        find_data_urls(**vars(args))
+        url_list = find_data_urls(**vars(args))
+        print("\n".join(url_list))
     else:
         download(**vars(args))
 
