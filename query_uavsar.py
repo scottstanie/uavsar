@@ -15,8 +15,8 @@ BASE_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/data.pl?{params}"
 # ^^ this gets redirected to...
 DOWNLOAD_URL = "https://uavsar.jpl.nasa.gov/Release2{char}/{product}/{data}"
 # e.g., SanAnd_23511_14068_001_140529_L090_CX_02/SanAnd_23511_14068_001_140529_L090_CX_143_02.h5
-# Not sure what possible chars are...
-RELEASE_CHARS = ["m", "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x"]
+# Not sure what possible chars are... test a-z
+RELEASE_CHARS = [chr(n) for n in range(ord("a"), ord("z") + 1)]
 
 # info for product
 INFO_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName={product}"
@@ -63,6 +63,7 @@ def find_data_urls(
     pol="VV",
     start_date=None,
     end_date=None,
+    url_file=None,
     verbose=True,
     **kwargs,
 ):
@@ -82,11 +83,18 @@ def find_data_urls(
         url = _check_letters(product, data)
         if url:
             url_list.append(url)
+    
+    if url_file:
+        print(f"Writing urls to {url_file}")
+        with open(url_file) as f:
+            f.write("\n".join(url_list))
+    else:
+        print("\n".join(url_list))
     return url_list
 
 
 def _check_letters(product, data):
-    print(f'searching {product}')
+    print(f"searching {product}")
     # Just send a HEAD request until one returns a 200
     possible_urls = [
         DOWNLOAD_URL.format(product=product, data=data, char=testchar)
@@ -100,7 +108,7 @@ def _check_letters(product, data):
                 return url
         else:
             print(
-                f"WARNING: no successful download url from {product}."
+                f"WARNING: no successful download url from {product}. "
                 f"Check {INFO_URL.format(product=product)}"
             )
 
@@ -228,6 +236,11 @@ def cli():
         help="display available data in format of --query-file, no download",
     )
     p.add_argument(
+        "--url-file",
+        default="uavsar_download_urls.txt",
+        help="File to save the URLs found for download",
+    )
+    p.add_argument(
         "--quiet",
         action="store_true",
         help="Limit output printing",
@@ -237,8 +250,7 @@ def cli():
     print(vars(args))
 
     if args.query_only:
-        urls = find_data_urls(**vars(args))
-        print("\n".join(urls))
+        find_data_urls(**vars(args))
     else:
         download(**vars(args))
 
