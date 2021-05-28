@@ -1,6 +1,8 @@
-from urllib.parse import urlencode
+import argparse
 from datetime import datetime
 import subprocess
+from urllib.parse import urlencode
+
 import requests
 import parsers
 
@@ -18,15 +20,20 @@ DATE_FMT = "%y%m%d"
 MODE_CHOICES_H5 = ["129", "138", "143"]
 MODE_CHOICES = [num + ab for num in MODE_CHOICES_H5 for ab in ["A", "B"]]
 
+# default query params
+EARLIEST = datetime(2008, 1, 1)
+FUTURE = datetime(2030, 1, 1)
+
 
 def download(
     flight_line,
     nisar_mode=MODE_CHOICES[0],
     file_type="h5",
     pol="VV",
-    start_date=datetime(2008, 1, 1),
-    end_date=datetime(2030, 1, 1),
+    start_date=None,
+    end_date=None,
     verbose=True,
+    **kwargs,
 ):
     url_list = find_data_urls(
         flight_line,
@@ -48,9 +55,10 @@ def find_data_urls(
     nisar_mode=MODE_CHOICES[0],
     file_type="h5",
     pol="VV",
-    start_date=datetime(2008, 1, 1),
-    end_date=datetime(2030, 1, 1),
+    start_date=None,
+    end_date=None,
     verbose=True,
+    **kwargs,
 ):
 
     product_list = find_nisar_products(
@@ -93,8 +101,8 @@ def _form_dataname(product, file_type=".slc", nisar_mode="129A", pol="VV"):
 
 def find_nisar_products(
     flight_line,
-    start_date=datetime(2008, 1, 1),
-    end_date=datetime(2030, 1, 1),
+    start_date=None,
+    end_date=None,
     verbose=True,
 ):
     search_url = form_url(
@@ -111,14 +119,20 @@ def find_nisar_products(
 
 
 def form_url(
-    start_date=datetime(2008, 1, 1),
-    end_date=datetime(2030, 1, 1),
+    start_date=None,
+    end_date=None,
     flight_line=23511,
     **kwargs,
 ):
     """"""
-    start_date = start_date.strftime(DATE_FMT)
-    end_date = end_date.strftime(DATE_FMT)
+    if not start_date:
+        start_date = EARLIEST
+    if not end_date:
+        end_date = FUTURE
+    if isinstance(start_date, datetime):
+        start_date = start_date.strftime(DATE_FMT)
+    if isinstance(end_date, datetime):
+        end_date = end_date.strftime(DATE_FMT)
     params = [
         ("fname", "searchUavsar"),
         ("args", flight_line),
@@ -141,3 +155,64 @@ def form_url(
         ("simulatedNisar", "simulated-nisar"),
     ]
     return BASE_URL.format(params=urlencode(params))
+
+
+def cli():
+    p = argparse.ArgumentParser()
+    p.add_argument(
+        "flight_line",
+        type=int,
+        help="UAVSAR flight line",
+    )
+    p.add_argument(
+        "--file-type",
+        help="Extension of radar product (default=%(default)s)",
+        default="h5",
+    )
+    p.add_argument(
+        "--nisar-mode",
+        default="129A",
+        choices=MODE_CHOICES,
+        help="NISAR mode of product (default=%(default)s)",
+    )
+    p.add_argument(
+        "--relativeOrbit",
+        type=int,
+        help="Limit to one path / relativeOrbit",
+    )
+    p.add_argument(
+        "--start-date",
+        help=f"Starting date for query (YYMMDD)",
+    )
+    p.add_argument(
+        "--end-date",
+        help=f"Ending date for query (YYMMDD)",
+    )
+    # p.add_argument(
+    #     "--out-dir",
+    #     "-o",
+    #     help="Path to directory for saving output files (default=%(default)s)",
+    #     default="./",
+    # )
+    p.add_argument(
+        "--query-only",
+        action="store_true",
+        help="display available data in format of --query-file, no download",
+    )
+    p.add_argument(
+        "--quiet",
+        action="store_true",
+        help="Limit output printing",
+    )
+    args = p.parse_args()
+    args.verbose = not args.quiet
+    print(vars(args))
+
+    if args.query_only:
+        find_data_urls(**vars(args))
+    else:
+        download(**vars(args))
+
+
+if __name__ == "__main__":
+    cli()
