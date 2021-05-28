@@ -37,6 +37,7 @@ def download(
     pol="VV",
     start_date=None,
     end_date=None,
+    url_file=None,
     verbose=True,
     **kwargs,
 ):
@@ -47,10 +48,11 @@ def download(
         pol=pol,
         start_date=start_date,
         end_date=end_date,
+        url_file=url_file,
         verbose=verbose,
     )
     for url in url_list:
-        cmd = f"wget {url}"
+        cmd = f"wget --no-clobber {url}"
         print(cmd)
         subprocess.run(cmd, shell=True)
 
@@ -66,6 +68,7 @@ def find_data_urls(
     verbose=True,
     **kwargs,
 ):
+    print(f"url_file = {url_file}")
     if url_file and os.path.exists(url_file):
         print(f"Found existing {url_file} to read from.")
         with open(url_file) as f:
