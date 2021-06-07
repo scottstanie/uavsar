@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Download NISAR-simulated UAVSAR products from specified flight lines
 
@@ -28,6 +29,9 @@ INFO_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName={product}"
 # For example:
 # https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName=SanAnd_23511_14128_002_140829_L090_CX_02#data
 
+# Loaction to save URLS, which is file-type-specific 
+URL_FILE_DEFAULT = "uavsar_download_urls_{file_type}.txt"
+
 DATE_FMT = "%y%m%d"
 # Make all possible NISAR mode combinations
 MODE_CHOICES_H5 = ["129", "138", "143"]
@@ -48,7 +52,7 @@ def download(
     pol="VV",
     start_date=None,
     end_date=None,
-    url_file="uavsar_download_urls.txt",
+    url_file=URL_FILE_DEFAULT,
     out_dir=".",
     verbose=True,
     **kwargs,
@@ -69,7 +73,8 @@ def download(
         start_date (str or datetime): starting date to limit search. If str, format = YYMMDD
         end_date (str or datetime): ending date to limit search. If str, format = YYMMDD
         url_file (str): Name of file to save urls from query.
-            default= "uavsar_download_urls.txt"
+            default= "uavsar_download_urls_FILE_TYPE.txt", e.g.
+            "uavsar_download_urls_h5.txt" for the HDF5 files
         out_dir (str): Directory to save downloaded products. Default=current directory.
             If out_dir doesn't exist, will create.
         verbose (bool): Print debug information (default=True)
@@ -109,13 +114,15 @@ def find_data_urls(
     pol="VV",
     start_date=None,
     end_date=None,
-    url_file="uavsar_download_urls.txt",
+    url_file=URL_FILE_DEFAULT,
     verbose=True,
     **kwargs,
 ):
     """Search and save download urls for a flight line.
     See `download` for all option information
     """
+    if url_file == URL_FILE_DEFAULT:
+        url_file = URL_FILE_DEFAULT.format(file_type=file_type)
     print(f"url_file = {url_file}")
     if url_file and os.path.exists(url_file):
         print(f"Found existing {url_file} to read from.")
@@ -307,11 +314,6 @@ def cli():
         help="NISAR mode of product (default=%(default)s)",
     )
     p.add_argument(
-        "--relativeOrbit",
-        type=int,
-        help="Limit to one path / relativeOrbit",
-    )
-    p.add_argument(
         "--start-date",
         help="Starting date for query (YYMMDD)",
     )
@@ -332,8 +334,8 @@ def cli():
     )
     p.add_argument(
         "--url-file",
-        default="uavsar_download_urls.txt",
-        help="File to save the URLs found for download",
+        default=URL_FILE_DEFAULT,
+        help="File to save the URLs found for download (default=%(default)s)",
     )
     p.add_argument(
         "--quiet",
