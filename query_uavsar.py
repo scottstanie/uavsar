@@ -29,16 +29,19 @@ INFO_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName={product}"
 # For example:
 # https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName=SanAnd_23511_14128_002_140829_L090_CX_02#data
 
-# Loaction to save URLS, which is file-type-specific 
-URL_FILE_DEFAULT = "uavsar_download_urls_{file_type}.txt"
+# Loaction to save URLS, which is file-type/pol-specific
+URL_FILE_DEFAULT = "uavsar_download_urls_{file_type}{pol}.txt"
 
 DATE_FMT = "%y%m%d"
 # Make all possible NISAR mode combinations
 MODE_CHOICES_H5 = ["129", "138", "143"]
-MODE_CHOICES = [num + ab for num in MODE_CHOICES_H5 for ab in ["A", "B"]]
+MODE_CHOICES = [num + ab for num in MODE_CHOICES_H5 for ab in ["a", "b"]]
 
 # These files have no polarization in file name (e.g. only L090, not L090VV)
 NO_POL_FILETYPES = ("ann", "inc", "flat.inc", "slope", "rtc", "hgt", "kmz", "h5")
+POLARIZATION_CHOICES = [
+    p.lower() for p in parsers.SINGLE_POLARIZATIONS + parsers.CROSS_POLARIZATIONS
+]
 
 # default query params for narrowing dates
 EARLIEST = datetime(2008, 1, 1)
@@ -49,7 +52,7 @@ def download(
     flight_line,
     nisar_mode=MODE_CHOICES[0],
     file_type="h5",
-    pol="VV",
+    pol="vv",
     start_date=None,
     end_date=None,
     url_file=URL_FILE_DEFAULT,
@@ -111,7 +114,7 @@ def find_data_urls(
     flight_line,
     nisar_mode=MODE_CHOICES[0],
     file_type="h5",
-    pol="VV",
+    pol="vv",
     start_date=None,
     end_date=None,
     url_file=URL_FILE_DEFAULT,
@@ -121,8 +124,16 @@ def find_data_urls(
     """Search and save download urls for a flight line.
     See `download` for all option information
     """
+    # clear '.' if it was passed
+    file_type_nodot = file_type.lstrip(".").lower()
+    # Check / remove polarization, depending on file type
+    if pol:
+        pol = pol.upper()
+    if file_type_nodot in NO_POL_FILETYPES:
+        pol = ""
+
     if url_file == URL_FILE_DEFAULT:
-        url_file = URL_FILE_DEFAULT.format(file_type=file_type)
+        url_file = URL_FILE_DEFAULT.format(file_type=file_type_nodot, pol=pol)
     print(f"url_file = {url_file}")
     if url_file and os.path.exists(url_file):
         print(f"Found existing {url_file} to read from.")
@@ -139,7 +150,7 @@ def find_data_urls(
     print(f"Finding urls for {len(product_list)} products")
     for product in product_list:
         data = _form_dataname(
-            product, nisar_mode=nisar_mode, file_type=file_type, pol=pol
+            product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol
         )
         url = _check_letters(product, data)
         if url:
@@ -180,16 +191,12 @@ def _check_letters(product, data):
         return None
 
 
-def _form_dataname(product, file_type=".slc", nisar_mode="129A", pol="VV"):
+def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
     """Combine the product, file-type, nisar mode, and polarization
     to make the correct file name to download
     """
-    # clear '.' if it was passed
     file_type_nodot = file_type.lstrip(".").lower()
-    # Check / remove polarization, depending on file type
-    if file_type_nodot in NO_POL_FILETYPES:
-        pol = ""
-    elif file_type_nodot in ("mlc", "grd"):
+    if file_type_nodot in ("mlc", "grd"):
         if pol and pol not in parsers.CROSS_POLARIZATIONS:
             raise ValueError(f"{pol} not a valid pol for .mlc, .grd files")
     elif file_type_nodot == "slc":
@@ -199,9 +206,10 @@ def _form_dataname(product, file_type=".slc", nisar_mode="129A", pol="VV"):
                 f"(choices = {parsers.SINGLE_POLARIZATIONS}"
             )
 
+    nisar_mode = nisar_mode.upper()
     if file_type_nodot == "h5":
         # only HDF5 files have the NISAR mode stripped, inlcudes both
-        nisar_mode = nisar_mode.upper().strip("AB")
+        nisar_mode = nisar_mode.strip("AB")
 
     # pol is placed in the "band_squint_pol" field
     parsed = parsers.Uavsar(product)
@@ -306,12 +314,14 @@ def cli():
         "--file-type",
         help="Extension of radar product (default=%(default)s)",
         default="h5",
+        type=str.lower,
     )
     p.add_argument(
         "--nisar-mode",
-        default="129A",
+        default="129a",
         choices=MODE_CHOICES,
         help="NISAR mode of product (default=%(default)s)",
+        type=str.lower,
     )
     p.add_argument(
         "--start-date",
@@ -320,6 +330,13 @@ def cli():
     p.add_argument(
         "--end-date",
         help="Ending date for query (YYMMDD)",
+    )
+    p.add_argument(
+        "--pol",
+        default="vv",
+        choices=POLARIZATION_CHOICES,
+        help="Polarization (for non-NISAR products, default=%(default)s)",
+        type=str.lower,
     )
     p.add_argument(
         "--out-dir",
