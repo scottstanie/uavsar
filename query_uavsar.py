@@ -8,11 +8,22 @@ import argparse
 from datetime import datetime
 import os
 import subprocess
-from urllib.parse import urlencode
-from concurrent.futures import ThreadPoolExecutor
-
 import requests
 import parsers
+
+import sys
+try:
+    from concurrent.futures import ThreadPoolExecutor
+    PARALLEL = True
+
+except ImportError:
+    PARALLEL = False
+
+if sys.version_info.major == 2:
+    from urllib import urlencode
+else:
+    from urllib.parse import urlencode
+
 
 # URL for all UAVSAR searches
 BASE_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/data.pl?{params}"
@@ -101,7 +112,7 @@ def download(
         verbose=verbose,
     )
     for url in url_list:
-        cmd = f"wget --no-clobber {url}"
+        cmd = "wget --no-clobber {url}".format(url=url)
         print(cmd)
         subprocess.run(cmd, shell=True)
         # Move the output from wget into the output dir, if specified
@@ -134,9 +145,9 @@ def find_data_urls(
 
     if url_file == URL_FILE_DEFAULT:
         url_file = URL_FILE_DEFAULT.format(file_type=file_type_nodot, pol=pol)
-    print(f"url_file = {url_file}")
+    print("url_file = {url_file}".format(url_file))
     if url_file and os.path.exists(url_file):
-        print(f"Found existing {url_file} to read from.")
+        print("Found existing {} to read from.".format(url_file))
         with open(url_file) as f:
             return f.read().splitlines()
 
@@ -147,7 +158,7 @@ def find_data_urls(
         verbose=verbose,
     )
     url_list = []
-    print(f"Finding urls for {len(product_list)} products")
+    print("Finding urls for {} products".format(len(product_list)))
     for product in product_list:
         data = _form_dataname(
             product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol
@@ -157,7 +168,7 @@ def find_data_urls(
             url_list.append(url)
 
     if url_file:
-        print(f"Writing urls to {url_file}")
+        print("Writing urls to {}".format(url_file))
         with open(url_file, "w") as f:
             f.write("\n".join(url_list) + "\n")
 
@@ -171,7 +182,7 @@ def _check_letters(product, data):
     TODO: If I find any pattern as to why some products are under,
     for example, Release2a, then stop this hack and just use that.
     """
-    print(f"searching for product = {product} , data = {data}")
+    print("searching for product = {} , data = {}".format(product, data))
     # Just send a HEAD request until one returns a 200
     possible_urls = [
         DOWNLOAD_URL.format(product=product, data=data, char=testchar)
@@ -185,8 +196,8 @@ def _check_letters(product, data):
             if status_code == 200:
                 return url
         print(
-            f"WARNING: no successful download url from {product}. "
-            f"Check {INFO_URL.format(product=product)}"
+            "WARNING: no successful download url from {}. "
+            "Check {}".format(product, INFO_URL.format(product=product))
         )
         return None
 
@@ -198,12 +209,12 @@ def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
     file_type_nodot = file_type.lstrip(".").lower()
     if file_type_nodot in ("mlc", "grd"):
         if pol and pol not in parsers.CROSS_POLARIZATIONS:
-            raise ValueError(f"{pol} not a valid pol for .mlc, .grd files")
+            raise ValueError("{} not a valid pol for .mlc, .grd files".format(pol))
     elif file_type_nodot == "slc":
         if pol and pol not in parsers.SINGLE_POLARIZATIONS:
             raise ValueError(
-                f"{pol} not a valid pol for .slc "
-                f"(choices = {parsers.SINGLE_POLARIZATIONS}"
+                "{} not a valid pol for .slc "
+                "(choices = {}".format(pol, parsers.SINGLE_POLARIZATIONS)
             )
 
     nisar_mode = nisar_mode.upper()
@@ -218,7 +229,9 @@ def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
         product = product.replace(bsp, bsp + pol)
     xtalk = parsed["xtalk"]
     dither = parsed["dither"]
-    product = product.replace(f"_{xtalk}{dither}_", f"_{xtalk}{dither}_{nisar_mode}_")
+    before = "_" + xtalk + dither + "_"
+    after = before + nisar_mode + "_"
+    product = product.replace(before, after)
     return product + "." + file_type_nodot
 
 
@@ -252,7 +265,7 @@ def find_nisar_products(
     search_url = form_url(
         flight_line=flight_line, start_date=start_date, end_date=end_date
     )
-    print(f"Querying {search_url}")
+    print("Querying {}".format(search_url))
     response = requests.get(search_url)
     lf = parsers.LinkFinder(verbose=False)
     lf.feed(response.text)
@@ -369,7 +382,7 @@ def cli():
         url_list = find_data_urls(**vars(args))
         print("\n".join(url_list))
     else:
-        print(f"Searching and downloading to {args.out_dir}.")
+        print("Searching and downloading to ", args.out_dir)
         download(**vars(args))
 
 

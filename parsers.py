@@ -1,5 +1,9 @@
 import re
-from html.parser import HTMLParser
+import sys
+if sys.version_info.major == 2:
+    from HTMLParser import HTMLParser
+else:
+    from html.parser import HTMLParser
 
 # Filetype of real or complex depends on the polarization for .grd, .mlc
 REAL_POLS = ("HHHH", "HVHV", "VVVV")
