@@ -145,7 +145,7 @@ def find_data_urls(
 
     if url_file == URL_FILE_DEFAULT:
         url_file = URL_FILE_DEFAULT.format(file_type=file_type_nodot, pol=pol)
-    print("url_file = {url_file}".format(url_file))
+    print("url_file = {}".format(url_file))
     if url_file and os.path.exists(url_file):
         print("Found existing {} to read from.".format(url_file))
         with open(url_file) as f:

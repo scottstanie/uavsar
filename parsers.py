@@ -137,7 +137,7 @@ class LinkFinder(HTMLParser):
     """
 
     def __init__(self, verbose=True):
-        super().__init__()
+        HTMLParser.__init__(self)
         self.products = []
         self.verbose = verbose
 
