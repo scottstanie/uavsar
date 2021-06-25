@@ -69,7 +69,7 @@ def download(
     url_file=URL_FILE_DEFAULT,
     out_dir=".",
     verbose=True,
-    **kwargs,
+    **kwargs
 ):
     """Gather all download urls associated with one flight line
 
@@ -130,7 +130,7 @@ def find_data_urls(
     end_date=None,
     url_file=URL_FILE_DEFAULT,
     verbose=True,
-    **kwargs,
+    **kwargs
 ):
     """Search and save download urls for a flight line.
     See `download` for all option information
@@ -279,7 +279,7 @@ def form_url(
     start_date=None,
     end_date=None,
     flight_line=23511,
-    **kwargs,
+    **kwargs
 ):
     """Given a flight line and date range, create url query to grab all flights"""
     if not start_date:
