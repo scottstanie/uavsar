@@ -18,10 +18,8 @@ try:
 except ImportError:
     print("WARNING: 'futures' package not installed for python2. "
           "url search will not be parallel. Run `pip install futures` "
-          "for large speed up.")
+          "for large speed up on NISAR-simulated downloads.")
     PARALLEL = False
-
-PARALLEL = False
 
 if sys.version_info.major == 2:
     from urllib import urlencode
@@ -39,13 +37,16 @@ DOWNLOAD_URL = "https://uavsar.jpl.nasa.gov/Release2{char}/{product}/{data}"
 # Not sure what possible chars are... so we'll test all a-z
 RELEASE_CHARS = [chr(n) for n in range(ord("a"), ord("z") + 1)]
 
+DOWNLOAD_URL_ASF = "https://uavsar.asf.alaska.edu/UA_{product}/{data}"
+# https://uavsar.asf.alaska.edu/UA_SanAnd_23511_20023_015_200903_L090_CX_01/SanAnd_23511_20023_015_200903_L090_CX_01.ann
+
 # info for one product
 INFO_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName={product}"
 # For example:
 # https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName=SanAnd_23511_14128_002_140829_L090_CX_02#data
 
 # Loaction to save URLS, which is file-type/pol-specific
-URL_FILE_DEFAULT = "uavsar_download_urls_{file_type}{pol}.txt"
+URL_FILE_DEFAULT = "uavsar_download_urls_{file_type}{pol}{nisar_mode}.txt"
 
 DATE_FMT = "%y%m%d"
 # Make all possible NISAR mode combinations
@@ -53,7 +54,7 @@ MODE_CHOICES_H5 = ["129", "138", "143"]
 MODE_CHOICES = [num + ab for num in MODE_CHOICES_H5 for ab in ["a", "b"]]
 
 # These files have no polarization in file name (e.g. only L090, not L090VV)
-NO_POL_FILETYPES = ("ann", "inc", "flat.inc", "slope", "rtc", "hgt", "kmz", "h5")
+NO_POL_FILETYPES = ("ann", "inc", "flat.inc", "slope", "rtc", "dat", "hgt", "kmz", "h5")
 POLARIZATION_CHOICES = [
     p.lower() for p in parsers.SINGLE_POLARIZATIONS + parsers.CROSS_POLARIZATIONS
 ]
@@ -148,17 +149,22 @@ def find_data_urls(
         pol = ""
 
     if url_file == URL_FILE_DEFAULT:
-        url_file = URL_FILE_DEFAULT.format(file_type=file_type_nodot, pol=pol)
+        url_file = URL_FILE_DEFAULT.format(
+            file_type=file_type_nodot,
+            pol=pol,
+            nisar_mode=nisar_mode or "",
+        )
     print("url_file = {}".format(url_file))
     if url_file and os.path.exists(url_file):
         print("Found existing {} to read from.".format(url_file))
         with open(url_file) as f:
             return f.read().splitlines()
 
-    product_list = find_nisar_products(
+    product_list = find_uavsar_products(
         flight_line,
         start_date=start_date,
         end_date=end_date,
+        nisar=bool(nisar_mode),
         verbose=verbose,
     )
     url_list = []
@@ -167,7 +173,13 @@ def find_data_urls(
         data = _form_dataname(
             product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol
         )
-        url = _check_letters(product, data)
+        if nisar_mode:
+            print("searching release urls for product = {} , data = {}".format(product, data))
+            url = _check_uavsar_release_urls(product, data)
+        else:
+            print("searching ASF url for product = {} , data = {}".format(product, data))
+            url = _get_asf_url(product, data)
+
         if url:
             url_list.append(url)
 
@@ -179,14 +191,18 @@ def find_data_urls(
     return url_list
 
 
-def _check_letters(product, data):
+def _get_asf_url(product, data):
+    """Searches the ASF archive for download url"""
+    return DOWNLOAD_URL_ASF.format(product=product, data=data)
+
+
+def _check_uavsar_release_urls(product, data):
     """Searches all possible download urls for the variation on
     uavsar.jpl.nasa.gov/Release2{char}
 
     TODO: If I find any pattern as to why some products are under,
     for example, Release2a, then stop this hack and just use that.
     """
-    print("searching for product = {} , data = {}".format(product, data))
     # Just send a HEAD request until one returns a 200
     possible_urls = [
         DOWNLOAD_URL.format(product=product, data=data, char=testchar)
@@ -229,7 +245,7 @@ def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
                 "(choices = {}".format(pol, parsers.SINGLE_POLARIZATIONS)
             )
 
-    nisar_mode = nisar_mode.upper()
+    nisar_mode = nisar_mode.upper() if nisar_mode else ""
     if file_type_nodot == "h5":
         # only HDF5 files have the NISAR mode stripped, inlcudes both
         nisar_mode = nisar_mode.strip("AB")
@@ -241,9 +257,10 @@ def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
         product = product.replace(bsp, bsp + pol)
     xtalk = parsed["xtalk"]
     dither = parsed["dither"]
-    before = "_" + xtalk + dither + "_"
-    after = before + nisar_mode + "_"
-    product = product.replace(before, after)
+    if nisar_mode:
+        before = "_" + xtalk + dither + "_"
+        after = before + nisar_mode + "_"
+        product = product.replace(before, after)
     return product + "." + file_type_nodot
 
 
@@ -262,10 +279,11 @@ def mkdir_p(path):
             raise
 
 
-def find_nisar_products(
+def find_uavsar_products(
     flight_line,
     start_date=None,
     end_date=None,
+    nisar=True,
     verbose=True,
 ):
     """Parse the query results for one flight line, scraping the url for all
@@ -275,7 +293,7 @@ def find_nisar_products(
     `LinkFinder` for all the <a> tags
     """
     search_url = form_url(
-        flight_line=flight_line, start_date=start_date, end_date=end_date
+        flight_line=flight_line, start_date=start_date, end_date=end_date, nisar=nisar,
     )
     print("Querying {}".format(search_url))
     response = requests.get(search_url)
@@ -291,6 +309,7 @@ def form_url(
     start_date=None,
     end_date=None,
     flight_line=23511,
+    nisar=True,
     **kwargs
 ):
     """Given a flight line and date range, create url query to grab all flights"""
@@ -314,17 +333,20 @@ def form_url(
         ("endDate", end_date),
         ("args", "PolSAR"),
         ("modeList", "PolSAR"),
-        ("args", "L-band,simulated-nisar"),
-        ("bandList", "L-band,simulated-nisar"),
+        ("args", "L-band,simulated-nisar" if nisar else "L-band"),
+        ("bandList", "L-band,simulated-nisar" if nisar else "L-band"),
         ("args", "single-pol,quad-pol"),
         ("polList", "single-pol,quad-pol"),
         ("args", flight_line),
         ("flownData", flight_line),
         ("args", flight_line),
         ("lineID", flight_line),
-        ("args", "simulated-nisar"),
-        ("simulatedNisar", "simulated-nisar"),
     ]
+    if nisar:
+        params.extend([
+            ("args", "simulated-nisar"),
+            ("simulatedNisar", "simulated-nisar"),
+        ])
     return BASE_URL.format(params=urlencode(params))
 
 
@@ -342,19 +364,20 @@ def cli():
         type=str.lower,
     )
     p.add_argument(
-        "--nisar-mode",
-        default="129a",
-        choices=MODE_CHOICES,
-        help="NISAR mode of product (default=%(default)s)",
-        type=str.lower,
-    )
-    p.add_argument(
         "--start-date",
         help="Starting date for query (YYMMDD)",
     )
     p.add_argument(
         "--end-date",
         help="Ending date for query (YYMMDD)",
+    )
+    p.add_argument(
+        "--nisar-mode",
+        default=None,
+        choices=MODE_CHOICES,
+        help=("If searching for NISAR-simulated products, "
+              "NISAR mode of product (default=%(default)s)"),
+        type=str.lower,
     )
     p.add_argument(
         "--pol",
@@ -394,7 +417,7 @@ def cli():
         url_list = find_data_urls(**vars(args))
         print("\n".join(url_list))
     else:
-        print("Searching and downloading to ", args.out_dir)
+        print("Searching and downloading to " + args.out_dir)
         download(**vars(args))
 
 
