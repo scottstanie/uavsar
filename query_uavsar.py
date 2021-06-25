@@ -15,9 +15,13 @@ import sys
 try:
     from concurrent.futures import ThreadPoolExecutor
     PARALLEL = True
-
 except ImportError:
+    print("WARNING: 'futures' package not installed for python2. "
+          "url search will not be parallel. Run `pip install futures` "
+          "for large speed up.")
     PARALLEL = False
+
+PARALLEL = False
 
 if sys.version_info.major == 2:
     from urllib import urlencode
@@ -188,18 +192,26 @@ def _check_letters(product, data):
         DOWNLOAD_URL.format(product=product, data=data, char=testchar)
         for testchar in RELEASE_CHARS
     ]
-    # Search 10 at a time for correct url
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        responses = executor.map(requests.head, possible_urls)
-        codes = [resp.status_code for resp in responses]
-        for url, status_code in zip(possible_urls, codes):
-            if status_code == 200:
+    if PARALLEL:
+        # Search 10 at a time for correct url
+        with ThreadPoolExecutor(max_workers=10) as executor:
+            responses = executor.map(requests.head, possible_urls)
+            codes = [resp.status_code for resp in responses]
+            for url, status_code in zip(possible_urls, codes):
+                if status_code == 200:
+                    return url
+    else:
+        # Just run search in serial
+        for url in possible_urls:
+            response = requests.head(url)
+            if response.status_code == 200:
                 return url
-        print(
-            "WARNING: no successful download url from {}. "
-            "Check {}".format(product, INFO_URL.format(product=product))
-        )
-        return None
+
+    print(
+        "WARNING: no successful download url from {}. "
+        "Check {}".format(product, INFO_URL.format(product=product))
+    )
+    return None
 
 
 def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
