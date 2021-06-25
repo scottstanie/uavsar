@@ -114,7 +114,7 @@ def download(
     for url in url_list:
         cmd = "wget --no-clobber {url}".format(url=url)
         print(cmd)
-        subprocess.run(cmd, shell=True)
+        subprocess.check_call(cmd, shell=True)
         # Move the output from wget into the output dir, if specified
         if out_dir != ".":
             saved_file = url.split("/")[-1]
