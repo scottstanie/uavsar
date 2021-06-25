@@ -120,6 +120,21 @@ class Uavsar(Base):
     )
     TIME_FMT = "%y%m%d"
 
+    @property
+    def line_id(self):
+        return self._get_field("line_id")
+
+    @property
+    def flight_id(self):
+        return self._get_field("flight_id")
+
+    @property
+    def data_take(self):
+        return self._get_field("data_take")
+
+    @property
+    def date(self):
+        return self._get_field("date")
 
 class LinkFinder(HTMLParser):
     """Finds EOF download links in aux.sentinel1.eo.esa.int page
@@ -136,10 +151,11 @@ class LinkFinder(HTMLParser):
     S1B_OPER_AUX_POEORB_OPOD_20201022T111233_V20201001T225942_20201003T005942.EOF.zip
     """
 
-    def __init__(self, verbose=True):
+    def __init__(self, verbose=True, nisar=True):
         HTMLParser.__init__(self)
         self.products = []
         self.verbose = verbose
+        self.nisar = nisar
 
     def handle_starttag(self, tag, attrs):
         if tag == "a":
@@ -149,3 +165,8 @@ class LinkFinder(HTMLParser):
                     self.products.append(product)
                     if self.verbose:
                         print(product)
+
+    def handle_data(self, data):
+        # This is inside a <small> tag after the NISAR version
+        if not self.nisar and data == "#simulated-nisar #dithered":
+            self.products.pop()

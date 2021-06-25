@@ -297,12 +297,29 @@ def find_uavsar_products(
     )
     print("Querying {}".format(search_url))
     response = requests.get(search_url)
-    lf = parsers.LinkFinder(verbose=False)
+    lf = parsers.LinkFinder(verbose=False, nisar=nisar)
     lf.feed(response.text)
+    all_products = _remove_duplicates(lf.products)
     if verbose:
-        for product in lf.products:
+        for product in all_products:
             print(INFO_URL.format(product=product))
-    return lf.products
+    return all_products
+
+
+def _remove_duplicates(product_list):
+    product_list = sorted(product_list, reverse=True)
+    out = [product_list[0]]
+    for idx, cur_name in enumerate(product_list[1:], start=1):
+        prev_name = product_list[idx - 1]
+        prev, cur = parsers.Uavsar(prev_name), parsers.Uavsar(cur_name)
+        if (prev.line_id == cur.line_id
+                and prev.flight_id == cur.flight_id
+                and prev.data_take == cur.data_take):
+            continue
+
+        out.append(cur_name)
+
+    return sorted(out)
 
 
 def form_url(
