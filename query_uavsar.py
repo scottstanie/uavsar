@@ -1,8 +1,11 @@
 #!/usr/bin/env python
 """
-Download NISAR-simulated UAVSAR products from specified flight lines
+Download PolSAR UAVSAR products from specified flight lines
+
+Specify the --nisar-mode for getting only NISAR-simulated products
 
 Author: Scott Staniewicz
+Date: 2021-06-01
 """
 import argparse
 from datetime import datetime
@@ -19,7 +22,7 @@ try:
 except ImportError:
     print("WARNING: 'futures' package not installed for python2. "
           "url search will not be parallel. Run `pip install futures` "
-          "for large speed up on NISAR-simulated downloads.")
+          "for speed up searches for many products. ")
     PARALLEL = False
 
 if sys.version_info.major == 2:
@@ -28,20 +31,8 @@ else:
     from urllib.parse import urlencode
 
 
-# TODO: standardize function "get/query" names
-
 # URL for all UAVSAR searches
 BASE_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/data.pl?{params}"
-
-# DOWNLOAD_URL = "https://downloaduav.jpl.nasa.gov/Release2{char}/{product}/{data}"
-# ^^ this gets redirected to the following:
-DOWNLOAD_URL = "https://uavsar.jpl.nasa.gov/Release2{char}/{product}/{data}"
-# e.g., SanAnd_23511_14068_001_140529_L090_CX_02/SanAnd_23511_14068_001_140529_L090_CX_143_02.h5
-# Not sure what possible chars are... so we'll test all a-z
-RELEASE_CHARS = [chr(n) for n in range(ord("a"), ord("z") + 1)]
-
-DOWNLOAD_URL_ASF = "https://uavsar.asf.alaska.edu/UA_{product}/{data}"
-# https://uavsar.asf.alaska.edu/UA_SanAnd_23511_20023_015_200903_L090_CX_01/SanAnd_23511_20023_015_200903_L090_CX_01.ann
 
 # Lists all the downloadable files for one product
 PRODUCT_LIST_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/query_asf.pl?job_name={product}"
@@ -180,7 +171,7 @@ def find_data_urls(
     print("Finding urls for {} products".format(len(product_list)))
 
     if PARALLEL:
-        # Search 10 at a time for correct url
+        # Search `MAX_WORKERS` locations in parallel for the products' urls
         with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
             links_per_product = executor.map(_query_product_urls, product_list)
     else:
@@ -272,10 +263,10 @@ def find_uavsar_products(
     """Parse the query results for one flight line, scraping the url for all
     related products.
 
-    The url from `form_url` gives just an HTML snippet, which is parsed by
+    The url from `form_search_url` gives just an HTML snippet, which is parsed by
     `LinkFinder` for all the <a> tags
     """
-    search_url = form_url(
+    search_url = form_search_url(
         flight_line=flight_line, start_date=start_date, end_date=end_date, nisar=nisar,
     )
     print("Querying {}".format(search_url))
@@ -305,7 +296,7 @@ def _remove_duplicates(product_list):
     return sorted(out)
 
 
-def form_url(
+def form_search_url(
     start_date=None,
     end_date=None,
     flight_line=23511,
