@@ -367,7 +367,7 @@ def cli():
     p.add_argument(
         "--file-type",
         help="Extension of radar product (default=%(default)s)",
-        default="h5",
+        default="ann",
         type=str.lower,
     )
     p.add_argument(
