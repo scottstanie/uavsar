@@ -193,7 +193,16 @@ def find_data_urls(
 
 def _get_asf_url(product, data):
     """Searches the ASF archive for download url"""
-    return DOWNLOAD_URL_ASF.format(product=product, data=data)
+    url = DOWNLOAD_URL_ASF.format(product=product, data=data)
+    response = requests.head(url)
+    if response.status_code == 200:
+        return url
+    else:
+        print(
+            "WARNING: no successful download url from {}. "
+            "Check {}".format(product, INFO_URL.format(product=product))
+        )
+        return None
 
 
 def _check_uavsar_release_urls(product, data):
