@@ -244,15 +244,6 @@ def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
     to make the correct file name to download
     """
     file_type_nodot = file_type.lstrip(".").lower()
-    if file_type_nodot in ("mlc", "grd"):
-        if pol and pol not in parsers.CROSS_POLARIZATIONS:
-            raise ValueError("{} not a valid pol for .mlc, .grd files".format(pol))
-    elif file_type_nodot == "slc":
-        if pol and pol not in parsers.SINGLE_POLARIZATIONS:
-            raise ValueError(
-                "{} not a valid pol for .slc "
-                "(choices = {}".format(pol, parsers.SINGLE_POLARIZATIONS)
-            )
 
     nisar_mode = nisar_mode.upper() if nisar_mode else ""
     if file_type_nodot == "h5":
@@ -292,7 +283,7 @@ def find_uavsar_products(
     flight_line,
     start_date=None,
     end_date=None,
-    nisar=True,
+    nisar=False,
     verbose=True,
 ):
     """Parse the query results for one flight line, scraping the url for all
@@ -335,7 +326,7 @@ def form_url(
     start_date=None,
     end_date=None,
     flight_line=23511,
-    nisar=True,
+    nisar=False,
     **kwargs
 ):
     """Given a flight line and date range, create url query to grab all flights"""
@@ -374,6 +365,22 @@ def form_url(
             ("simulatedNisar", "simulated-nisar"),
         ])
     return BASE_URL.format(params=urlencode(params))
+
+
+def _check_valid_pol(pol, file_type):
+    file_type_nodot = file_type.lstrip(".").lower()
+    if file_type_nodot in ("mlc", "grd"):
+        if pol and pol not in parsers.CROSS_POLARIZATIONS:
+            raise ValueError(
+                "{} not a valid pol for .mlc, .grd files. "
+                "Choices: {}".format(pol.upper(), parsers.CROSS_POLARIZATIONS)
+            )
+    elif file_type_nodot == "slc":
+        if pol and pol not in parsers.SINGLE_POLARIZATIONS:
+            raise ValueError(
+                "{} not a valid pol for .slc "
+                "Choices = {}".format(pol.upper(), parsers.SINGLE_POLARIZATIONS)
+            )
 
 
 def cli():
@@ -434,6 +441,7 @@ def cli():
         help="Limit output printing",
     )
     args = p.parse_args()
+    _check_valid_pol(args.pol, args.file_type)
     args.verbose = not args.quiet
     print("Arguments for search:")
     print(vars(args))
