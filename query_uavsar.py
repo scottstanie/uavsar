@@ -15,6 +15,7 @@ import sys
 try:
     from concurrent.futures import ThreadPoolExecutor
     PARALLEL = True
+    MAX_WORKERS = 10  # Number of concurrent requests
 except ImportError:
     print("WARNING: 'futures' package not installed for python2. "
           "url search will not be parallel. Run `pip install futures` "
@@ -177,27 +178,28 @@ def find_data_urls(
     )
     url_list = []
     print("Finding urls for {} products".format(len(product_list)))
-    for product in product_list:
-        data = _form_dataname(
-            product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol
-        )
-        all_links = _query_product_urls(product)
 
+    if PARALLEL:
+        # Search 10 at a time for correct url
+        with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+            links_per_product = executor.map(_query_product_urls, product_list)
+    else:
+        # Just run search in serial
+        links_per_product = [_query_product_urls(product) for product in product_list]
+
+    # Now will all possible download urls, find the one based on pol/file type/...
+    for all_links, product in zip(links_per_product, product_list):
+        data = _form_dataname(product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol)
         matching_links = [link for link in all_links if data in link]
         if len(matching_links) > 2:
             raise ValueError("Found more then 1 matching link? {}".format(matching_links))
         elif len(matching_links) == 1:
             url_list.append(matching_links[0])
-
-        # old bad method: guess and check (instead of query the PRODUCT_LIST_URL)
-        # if nisar_mode:
-        #     print("searching release urls for product = {} , data = {}".format(product, data))
-        #     url = _check_uavsar_release_urls(product, data)
-        # else:
-        #     print("searching ASF url for product = {} , data = {}".format(product, data))
-        #     url = _get_asf_url(product, data)
-        # if url:
-        #     url_list.append(url)
+        else:
+            print(
+                "WARNING: no successful download url from {} for {}. "
+                "Check {}".format(product, data, INFO_URL.format(product=product))
+            )
 
     if url_file:
         print("Writing urls to {}".format(url_file))
@@ -217,54 +219,6 @@ def _query_product_urls(product):
     lf = parsers.LinkFinder(verbose=False, split_products=False)
     lf.feed(resp.text)
     return [link for link in lf.links if product in link and link.startswith("http")]
-
-
-def _get_asf_url(product, data):
-    """Searches the ASF archive for download url"""
-    url = DOWNLOAD_URL_ASF.format(product=product, data=data)
-    response = requests.head(url)
-    if response.status_code == 200:
-        return url
-    else:
-        print(
-            "WARNING: no successful download url from {}. "
-            "Check {}".format(product, INFO_URL.format(product=product))
-        )
-        return None
-
-
-def _check_uavsar_release_urls(product, data):
-    """Searches all possible download urls for the variation on
-    uavsar.jpl.nasa.gov/Release2{char}
-
-    TODO: If I find any pattern as to why some products are under,
-    for example, Release2a, then stop this hack and just use that.
-    """
-    # Just send a HEAD request until one returns a 200
-    possible_urls = [
-        DOWNLOAD_URL.format(product=product, data=data, char=testchar)
-        for testchar in RELEASE_CHARS
-    ]
-    if PARALLEL:
-        # Search 10 at a time for correct url
-        with ThreadPoolExecutor(max_workers=10) as executor:
-            responses = executor.map(requests.head, possible_urls)
-            codes = [resp.status_code for resp in responses]
-            for url, status_code in zip(possible_urls, codes):
-                if status_code == 200:
-                    return url
-    else:
-        # Just run search in serial
-        for url in possible_urls:
-            response = requests.head(url)
-            if response.status_code == 200:
-                return url
-
-    print(
-        "WARNING: no successful download url from {}. "
-        "Check {}".format(product, INFO_URL.format(product=product))
-    )
-    return None
 
 
 def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
