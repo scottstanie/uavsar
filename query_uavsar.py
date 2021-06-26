@@ -344,13 +344,13 @@ def form_search_url(
 def _check_valid_pol(pol, file_type):
     file_type_nodot = file_type.lstrip(".").lower()
     if file_type_nodot in ("mlc", "grd"):
-        if pol and pol not in parsers.CROSS_POLARIZATIONS:
+        if pol and pol.upper() not in parsers.CROSS_POLARIZATIONS:
             raise ValueError(
                 "{} not a valid pol for .mlc, .grd files. "
                 "Choices: {}".format(pol.upper(), parsers.CROSS_POLARIZATIONS)
             )
     elif file_type_nodot == "slc":
-        if pol and pol not in parsers.SINGLE_POLARIZATIONS:
+        if pol and pol.upper() not in parsers.SINGLE_POLARIZATIONS:
             raise ValueError(
                 "{} not a valid pol for .slc "
                 "Choices = {}".format(pol.upper(), parsers.SINGLE_POLARIZATIONS)
