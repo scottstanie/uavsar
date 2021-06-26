@@ -136,6 +136,7 @@ class Uavsar(Base):
     def date(self):
         return self._get_field("date")
 
+
 class LinkFinder(HTMLParser):
     """Finds EOF download links in aux.sentinel1.eo.esa.int page
 
@@ -151,20 +152,28 @@ class LinkFinder(HTMLParser):
     S1B_OPER_AUX_POEORB_OPOD_20201022T111233_V20201001T225942_20201003T005942.EOF.zip
     """
 
-    def __init__(self, verbose=True, nisar=True):
+    def __init__(self, verbose=True, nisar=True, split_products=True):
         HTMLParser.__init__(self)
         self.products = []
+        self.links = []
         self.verbose = verbose
         self.nisar = nisar
+        self._split_products = split_products
 
     def handle_starttag(self, tag, attrs):
         if tag == "a":
             for name, value in attrs:
                 if name == "href":
-                    product = value.split("=")[1]
-                    self.products.append(product)
+                    self.links.append(value)
                     if self.verbose:
-                        print(product)
+                        print(value)
+                    # For the first attempt at gathering product names,
+                    # result is like "/cgi-bin/product.pl?jobName={product}"
+                    if self._split_products:
+                        product = value.split("=")[1]
+                        self.products.append(product)
+                        if self.verbose:
+                            print(product)
 
     def handle_data(self, data):
         # This is inside a <small> tag after the NISAR version

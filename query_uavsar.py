@@ -27,6 +27,8 @@ else:
     from urllib.parse import urlencode
 
 
+# TODO: standardize function "get/query" names
+
 # URL for all UAVSAR searches
 BASE_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/data.pl?{params}"
 
@@ -40,10 +42,16 @@ RELEASE_CHARS = [chr(n) for n in range(ord("a"), ord("z") + 1)]
 DOWNLOAD_URL_ASF = "https://uavsar.asf.alaska.edu/UA_{product}/{data}"
 # https://uavsar.asf.alaska.edu/UA_SanAnd_23511_20023_015_200903_L090_CX_01/SanAnd_23511_20023_015_200903_L090_CX_01.ann
 
-# info for one product
+# Lists all the downloadable files for one product
+PRODUCT_LIST_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/query_asf.pl?job_name={product}"
+# Example:
+# https://uavsar.jpl.nasa.gov/cgi-bin/query_asf.pl?job_name=SanAnd_23511_14128_002_140829_L090_CX_02
+
+# visual interface showing the info for one product (this page calls PRODUCT_LISTS_URL)
 INFO_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName={product}"
 # For example:
 # https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName=SanAnd_23511_14128_002_140829_L090_CX_02#data
+
 
 # Loaction to save URLS, which is file-type/pol-specific
 URL_FILE_DEFAULT = "uavsar_download_urls_{file_type}{pol}{nisar_mode}.txt"
@@ -173,15 +181,23 @@ def find_data_urls(
         data = _form_dataname(
             product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol
         )
-        if nisar_mode:
-            print("searching release urls for product = {} , data = {}".format(product, data))
-            url = _check_uavsar_release_urls(product, data)
-        else:
-            print("searching ASF url for product = {} , data = {}".format(product, data))
-            url = _get_asf_url(product, data)
+        all_links = _query_product_urls(product)
 
-        if url:
-            url_list.append(url)
+        matching_links = [link for link in all_links if data in link]
+        if len(matching_links) > 2:
+            raise ValueError("Found more then 1 matching link? {}".format(matching_links))
+        elif len(matching_links) == 1:
+            url_list.append(matching_links[0])
+
+        # old bad method: guess and check (instead of query the PRODUCT_LIST_URL)
+        # if nisar_mode:
+        #     print("searching release urls for product = {} , data = {}".format(product, data))
+        #     url = _check_uavsar_release_urls(product, data)
+        # else:
+        #     print("searching ASF url for product = {} , data = {}".format(product, data))
+        #     url = _get_asf_url(product, data)
+        # if url:
+        #     url_list.append(url)
 
     if url_file:
         print("Writing urls to {}".format(url_file))
@@ -189,6 +205,18 @@ def find_data_urls(
             f.write("\n".join(url_list) + "\n")
 
     return url_list
+
+
+def _query_product_urls(product):
+    """Use the URL called by the product page to find all downloadable links
+    E.g., for product SanAnd_23511_14068_001_140529_L090_CX_01, parse the HTML for links at
+    https://uavsar.jpl.nasa.gov/cgi-bin/query_asf.pl?job_name=SanAnd_23511_14068_001_140529_L090_CX_01
+    """
+    print("searching release urls for product = {}".format(product))
+    resp = requests.get(PRODUCT_LIST_URL.format(product=product))
+    lf = parsers.LinkFinder(verbose=False, split_products=False)
+    lf.feed(resp.text)
+    return [link for link in lf.links if product in link and link.startswith("http")]
 
 
 def _get_asf_url(product, data):
@@ -246,6 +274,7 @@ def _form_dataname(product, file_type=".slc", nisar_mode="129a", pol="vv"):
     file_type_nodot = file_type.lstrip(".").lower()
 
     nisar_mode = nisar_mode.upper() if nisar_mode else ""
+    pol = pol.upper() if pol else ""
     if file_type_nodot == "h5":
         # only HDF5 files have the NISAR mode stripped, inlcudes both
         nisar_mode = nisar_mode.strip("AB")
