@@ -16,6 +16,7 @@ setuptools.setup(
         "Intended Audience :: Science/Research",
     ],
     install_requires=["requests"],
+    extras_require={':python_version == "2.7"': ["futures"]},
     entry_points={
         "console_scripts": [
             "uaquery=query_uavsar:cli",
