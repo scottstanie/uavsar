@@ -105,7 +105,8 @@ def download(
     Reference: https://uavsar.jpl.nasa.gov/science/documents/nisar-sample-products.html
     """
     netrc = create_netrc.ASFCredentials()
-    if not netrc.has_nasa_netrc():
+    # All non-nisar PolSAR products needs ASF credentials
+    if not nisar_mode and not netrc.has_nasa_netrc():
         username, password = netrc.handle_credentials()
     else:
         username, password = None, None
@@ -192,8 +193,8 @@ def find_data_urls(
     # Now will all possible download urls, find the one based on pol/file type/...
     for all_links, product in zip(links_per_product, product_list):
         data = _form_dataname(product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol)
-        matching_links = [link for link in all_links if data in link]
-        if len(matching_links) > 2:
+        matching_links = list(set([link for link in all_links if data in link]))
+        if len(matching_links) >= 2:
             raise ValueError("Found more then 1 matching link? {}".format(matching_links))
         elif len(matching_links) == 1:
             url_list.append(matching_links[0])
