@@ -56,7 +56,6 @@ class ASFCredentials(object):
         If the user wants to save as .netrc, add to existing, or create new ~/.netrc
         """
         username, password, save_creds = self._get_username_pass()
-        self.save_creds = save_creds
 
         if save_creds:
             try:
@@ -76,8 +75,7 @@ class ASFCredentials(object):
             return None, None
         else:
             # Save these as attritubes for the NASA url request
-            self.username = username
-            self.password = password
+            return username, password
 
     @staticmethod
     def _get_username_pass():

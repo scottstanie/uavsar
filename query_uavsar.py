@@ -126,7 +126,7 @@ def download(
     for url in url_list:
         cmd = "wget --no-clobber {url}".format(url=url)
         if username and password:
-            cmd += " --user={} --password={}".format(netrc.username, netrc.password)
+            cmd += " --user={} --password={}".format(username, password)
 
         print(cmd)
         subprocess.check_call(cmd, shell=True)
