@@ -1,7 +1,13 @@
+from __future__ import print_function
 import os
 import netrc
 import getpass
 import requests
+
+try:
+    input = raw_input  # Check for python 2
+except NameError:
+    pass
 
 NASAHOST = "urs.earthdata.nasa.gov"
 NETRC_FILE = "~/.netrc"
