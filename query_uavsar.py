@@ -13,6 +13,7 @@ import os
 import subprocess
 import requests
 import parsers
+import create_netrc
 
 import sys
 try:
@@ -103,6 +104,12 @@ def download(
 
     Reference: https://uavsar.jpl.nasa.gov/science/documents/nisar-sample-products.html
     """
+    netrc = create_netrc.ASFCredentials()
+    if not netrc.has_nasa_netrc():
+        username, password = netrc.handle_credentials()
+    else:
+        username, password = None, None
+
     if out_dir != ".":
         mkdir_p(out_dir)
 
@@ -118,8 +125,12 @@ def download(
     )
     for url in url_list:
         cmd = "wget --no-clobber {url}".format(url=url)
+        if username and password:
+            cmd += " --user={} --password={}".format(netrc.username, netrc.password)
+
         print(cmd)
         subprocess.check_call(cmd, shell=True)
+
         # Move the output from wget into the output dir, if specified
         if out_dir != ".":
             saved_file = url.split("/")[-1]
