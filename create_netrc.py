@@ -2,7 +2,6 @@ from __future__ import print_function
 import os
 import netrc
 import getpass
-import requests
 
 try:
     input = raw_input  # Check for python 2
@@ -113,11 +112,3 @@ class ASFCredentials(object):
         outstring += "\tlogin {}\n".format(username)
         outstring += "\tpassword {}\n".format(password)
         return outstring
-
-
-def _url_needs_credentials(url):
-    r = requests.head(url, allow_redirects=True)
-    if r.reason.lower() == "forbidden":
-        return True
-    r.raise_for_status()
-    return False
