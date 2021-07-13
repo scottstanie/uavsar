@@ -16,14 +16,18 @@ import parsers
 import create_netrc
 
 import sys
+
 try:
     from concurrent.futures import ThreadPoolExecutor
+
     PARALLEL = True
     MAX_WORKERS = 10  # Number of concurrent requests
 except ImportError:
-    print("WARNING: 'futures' package not installed for python2. "
-          "url search will not be parallel. Run `pip install futures` "
-          "for speed up searches for many products. ")
+    print(
+        "WARNING: 'futures' package not installed for python2. "
+        "url search will not be parallel. Run `pip install futures` "
+        "for speed up searches for many products. "
+    )
     PARALLEL = False
 
 if sys.version_info.major == 2:
@@ -49,7 +53,9 @@ INFO_URL = "https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName={product}"
 # Loaction to save URLS, which is file-type/pol-specific
 URL_FILE_DEFAULT = "uavsar_download_urls_{file_type}{pol}{nisar_mode}.txt"
 
+# Format used in UAVSAR API for searching dates
 DATE_FMT = "%y%m%d"
+
 # Make all possible NISAR mode combinations
 MODE_CHOICES_H5 = ["129", "138", "143"]
 MODE_CHOICES = [num + ab for num in MODE_CHOICES_H5 for ab in ["a", "b"]]
@@ -192,10 +198,14 @@ def find_data_urls(
 
     # Now will all possible download urls, find the one based on pol/file type/...
     for all_links, product in zip(links_per_product, product_list):
-        data = _form_dataname(product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol)
+        data = _form_dataname(
+            product, nisar_mode=nisar_mode, file_type=file_type_nodot, pol=pol
+        )
         matching_links = list(set([link for link in all_links if data in link]))
         if len(matching_links) >= 2:
-            raise ValueError("Found more then 1 matching link? {}".format(matching_links))
+            raise ValueError(
+                "Found more then 1 matching link? {}".format(matching_links)
+            )
         elif len(matching_links) == 1:
             url_list.append(matching_links[0])
         else:
@@ -279,7 +289,10 @@ def find_uavsar_products(
     `LinkFinder` for all the <a> tags
     """
     search_url = form_search_url(
-        flight_line=flight_line, start_date=start_date, end_date=end_date, nisar=nisar,
+        flight_line=flight_line,
+        start_date=start_date,
+        end_date=end_date,
+        nisar=nisar,
     )
     print("Querying {}".format(search_url))
     response = requests.get(search_url)
@@ -298,9 +311,11 @@ def _remove_duplicates(product_list):
     for idx, cur_name in enumerate(product_list[1:], start=1):
         prev_name = product_list[idx - 1]
         prev, cur = parsers.Uavsar(prev_name), parsers.Uavsar(cur_name)
-        if (prev.line_id == cur.line_id
-                and prev.flight_id == cur.flight_id
-                and prev.data_take == cur.data_take):
+        if (
+            prev.line_id == cur.line_id
+            and prev.flight_id == cur.flight_id
+            and prev.data_take == cur.data_take
+        ):
             continue
 
         out.append(cur_name)
@@ -309,11 +324,7 @@ def _remove_duplicates(product_list):
 
 
 def form_search_url(
-    start_date=None,
-    end_date=None,
-    flight_line=23511,
-    nisar=False,
-    **kwargs
+    start_date=None, end_date=None, flight_line=23511, nisar=False, **kwargs
 ):
     """Given a flight line and date range, create url query to grab all flights"""
     if not start_date:
@@ -346,10 +357,12 @@ def form_search_url(
         ("lineID", flight_line),
     ]
     if nisar:
-        params.extend([
-            ("args", "simulated-nisar"),
-            ("simulatedNisar", "simulated-nisar"),
-        ])
+        params.extend(
+            [
+                ("args", "simulated-nisar"),
+                ("simulatedNisar", "simulated-nisar"),
+            ]
+        )
     return BASE_URL.format(params=urlencode(params))
 
 
@@ -369,6 +382,25 @@ def _check_valid_pol(pol, file_type):
             )
 
 
+def _valid_date(arg_value):
+    """Parse the date, making some guesses if they pass extra stuff
+    Try and accept 2013-01-01, 13_01_01, 20130101, 130101"""
+    arg = arg_value.replace("_", "").replace("-", "")
+    err_msg = "Not a valid yymmdd date: '{}'.".format(arg_value)
+    if len(arg) == 8:  # YYYYmmdd:
+        try:
+            return datetime.strptime(arg, "%Y%m%d")
+        except ValueError:
+            raise argparse.ArgumentTypeError(err_msg)
+    elif len(arg) == 6:
+        try:
+            return datetime.strptime(arg, DATE_FMT)
+        except ValueError:
+            raise argparse.ArgumentTypeError(err_msg)
+    else:
+        raise argparse.ArgumentTypeError(err_msg)
+
+
 def cli():
     p = argparse.ArgumentParser()
     p.add_argument(
@@ -385,17 +417,21 @@ def cli():
     p.add_argument(
         "--start-date",
         help="Starting date for query (YYMMDD)",
+        type=_valid_date,
     )
     p.add_argument(
         "--end-date",
         help="Ending date for query (YYMMDD)",
+        type=_valid_date,
     )
     p.add_argument(
         "--nisar-mode",
         default=None,
         choices=MODE_CHOICES,
-        help=("If searching for NISAR-simulated products, "
-              "NISAR mode of product (default=%(default)s)"),
+        help=(
+            "If searching for NISAR-simulated products, "
+            "NISAR mode of product (default=%(default)s)"
+        ),
         type=str.lower,
     )
     p.add_argument(
