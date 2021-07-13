@@ -214,7 +214,7 @@ def find_data_urls(
                 "Check {}".format(product, data, INFO_URL.format(product=product))
             )
 
-    if url_file:
+    if url_file and url_list:
         print("Writing urls to {}".format(url_file))
         with open(url_file, "w") as f:
             f.write("\n".join(url_list) + "\n")
@@ -384,9 +384,9 @@ def _check_valid_pol(pol, file_type):
 
 def _valid_date(arg_value):
     """Parse the date, making some guesses if they pass extra stuff
-    Try and accept 2013-01-01, 13_01_01, 20130101, 130101"""
-    arg = arg_value.replace("_", "").replace("-", "")
-    err_msg = "Not a valid yymmdd date: '{}'.".format(arg_value)
+    Try and accept 2013-01-01, 13_01_01, 2013/01/01, 20130101, 130101"""
+    arg = arg_value.replace("_", "").replace("-", "").replace("/", "")
+    err_msg = "Not a valid date: '{}'.".format(arg_value)
     if len(arg) == 8:  # YYYYmmdd:
         try:
             return datetime.strptime(arg, "%Y%m%d")
