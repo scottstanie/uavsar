@@ -387,18 +387,16 @@ def _valid_date(arg_value):
     Try and accept 2013-01-01, 13_01_01, 2013/01/01, 20130101, 130101"""
     arg = arg_value.replace("_", "").replace("-", "").replace("/", "")
     err_msg = "Not a valid date: '{}'.".format(arg_value)
-    if len(arg) == 8:  # YYYYmmdd:
-        try:
+    try:
+        if len(arg) == 8:  # YYYYmmdd:
             return datetime.strptime(arg, "%Y%m%d")
-        except ValueError:
-            raise argparse.ArgumentTypeError(err_msg)
-    elif len(arg) == 6:
-        try:
+        elif len(arg) == 6:
             return datetime.strptime(arg, DATE_FMT)
-        except ValueError:
-            raise argparse.ArgumentTypeError(err_msg)
-    else:
+    except ValueError:
         raise argparse.ArgumentTypeError(err_msg)
+
+    # Other cases don't match accepted format
+    raise argparse.ArgumentTypeError(err_msg)
 
 
 def cli():
