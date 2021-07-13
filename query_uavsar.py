@@ -416,12 +416,12 @@ def cli():
     )
     p.add_argument(
         "--start-date",
-        help="Starting date for query (YYMMDD)",
+        help="Starting date for query (formats accepts: YYYYMMDD, YYYY-MM-DD, yymmdd)",
         type=_valid_date,
     )
     p.add_argument(
         "--end-date",
-        help="Ending date for query (YYMMDD)",
+        help="Ending date for query (formats accepts: YYYYMMDD, YYYY-MM-DD, yymmdd)",
         type=_valid_date,
     )
     p.add_argument(
