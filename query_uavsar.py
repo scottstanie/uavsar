@@ -8,14 +8,16 @@ Author: Scott Staniewicz
 Date: 2021-06-01
 """
 import argparse
+import sys
 from datetime import datetime
 import os
 import subprocess
 import requests
-import parsers
+import geoslc.parsers as parsers
+from geoslc.logger import get_log
 import create_netrc
 
-import sys
+log = get_log()
 
 try:
     from concurrent.futures import ThreadPoolExecutor
@@ -23,8 +25,8 @@ try:
     PARALLEL = True
     MAX_WORKERS = 10  # Number of concurrent requests
 except ImportError:
-    print(
-        "WARNING: 'futures' package not installed for python2. "
+    log.warning(
+        "'futures' package not installed for python2. "
         "url search will not be parallel. Run `pip install futures` "
         "for speed up searches for many products. "
     )
@@ -135,7 +137,7 @@ def download(
         if username and password:
             cmd += " --user={} --password={}".format(username, password)
 
-        print(cmd)
+        log.info(cmd)
         subprocess.check_call(cmd, shell=True)
 
         # Move the output from wget into the output dir, if specified
@@ -172,9 +174,9 @@ def find_data_urls(
             pol=pol,
             nisar_mode=nisar_mode or "",
         )
-    print("url_file = {}".format(url_file))
+    log.info("url_file = {}".format(url_file))
     if url_file and os.path.exists(url_file):
-        print("Found existing {} to read from.".format(url_file))
+        log.info("Found existing {} to read from.".format(url_file))
         with open(url_file) as f:
             return f.read().splitlines()
 
@@ -186,7 +188,7 @@ def find_data_urls(
         verbose=verbose,
     )
     url_list = []
-    print("Finding urls for {} products".format(len(product_list)))
+    log.info("Finding urls for {} products".format(len(product_list)))
 
     if PARALLEL:
         # Search `MAX_WORKERS` locations in parallel for the products' urls
@@ -209,13 +211,13 @@ def find_data_urls(
         elif len(matching_links) == 1:
             url_list.append(matching_links[0])
         else:
-            print(
+            log.info(
                 "WARNING: no successful download url from {} for {}. "
                 "Check {}".format(product, data, INFO_URL.format(product=product))
             )
 
     if url_file and url_list:
-        print("Writing urls to {}".format(url_file))
+        log.info("Writing urls to {}".format(url_file))
         with open(url_file, "w") as f:
             f.write("\n".join(url_list) + "\n")
 
@@ -227,7 +229,7 @@ def _query_product_urls(product):
     E.g., for product SanAnd_23511_14068_001_140529_L090_CX_01, parse the HTML for links at
     https://uavsar.jpl.nasa.gov/cgi-bin/query_asf.pl?job_name=SanAnd_23511_14068_001_140529_L090_CX_01
     """
-    print("searching release urls for product = {}".format(product))
+    log.info("searching release urls for product = {}".format(product))
     resp = requests.get(PRODUCT_LIST_URL.format(product=product))
     lf = parsers.LinkFinder(verbose=False, split_products=False)
     lf.feed(resp.text)
@@ -294,14 +296,14 @@ def find_uavsar_products(
         end_date=end_date,
         nisar=nisar,
     )
-    print("Querying {}".format(search_url))
+    log.info("Querying {}".format(search_url))
     response = requests.get(search_url)
     lf = parsers.LinkFinder(verbose=False, nisar=nisar)
     lf.feed(response.text)
     all_products = _remove_duplicates(lf.products)
     if verbose:
         for product in all_products:
-            print(INFO_URL.format(product=product))
+            log.info(INFO_URL.format(product=product))
     return all_products
 
 
@@ -463,15 +465,15 @@ def cli():
     args = p.parse_args()
     _check_valid_pol(args.pol, args.file_type)
     args.verbose = not args.quiet
-    print("Arguments for search:")
-    print(vars(args))
+    log.info("Arguments for search:")
+    log.info(vars(args))
 
     if args.query_only:
-        print("Only finding URLs for download:")
+        log.info("Only finding URLs for download:")
         url_list = find_data_urls(**vars(args))
-        print("\n".join(url_list))
+        log.info("\n".join(url_list))
     else:
-        print("Searching and downloading to " + args.out_dir)
+        log.info("Searching and downloading to " + args.out_dir)
         download(**vars(args))
 
 
