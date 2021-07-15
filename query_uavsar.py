@@ -13,9 +13,9 @@ from datetime import datetime
 import os
 import subprocess
 import requests
-import geoslc.parsers as parsers
-from geoslc.logger import get_log
-import create_netrc
+import download.parsers as parsers
+import download.create_netrc as create_netrc
+from download.logger import get_log
 
 log = get_log()
 
