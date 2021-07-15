@@ -1,15 +1,9 @@
 import numpy as np
 from math import ceil, floor, cos, sin, sqrt
-from numba import njit, prange
+from numba import njit, prange, cuda
 from download.logger import get_log
 
 log = get_log()
-
-try:
-    from numba import cuda
-except ImportError:
-    log.info("Failed to import numba.cuda", exc_info=True)
-    log.info("Using CPU only.")
 
 from apertools import sario, latlon  # TODO: port just necessary functions
 from . import orbit, orbit_gpu, parsers
