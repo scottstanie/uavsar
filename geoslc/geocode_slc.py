@@ -1,37 +1,35 @@
-import sys
 import numpy as np
 from math import ceil, floor, cos, sin, sqrt
-from numba import cuda, njit, prange
-from apertools import sario, latlon
-from uavsar import orbit, orbit_gpu, parsers
+from numba import njit, prange
+from download.logger import get_log
 
+log = get_log()
 
-@njit(nogil=True)
-def interp(slc, az_idx, rg_idx):
-    """Interpolate the image `slc` at az bin (row) `az_idx` over the
-    fractional range bin index `rg_idx`"""
-    rg_floor = int(floor(rg_idx))
-    rg_ceil = int(ceil(rg_idx))
-    pct_to_ceil = rg_idx - floor(rg_idx)
-    return (1 - pct_to_ceil) * slc[az_idx, rg_floor] + pct_to_ceil * slc[
-        az_idx, rg_ceil
-    ]
+try:
+    from numba import cuda
+except ImportError:
+    log.info("Failed to import numba.cuda", exc_info=True)
+    log.info("Using CPU only.")
+
+from apertools import sario, latlon  # TODO: port just necessary functions
+from . import orbit, orbit_gpu, parsers
 
 
 def main(
     hdf5_file,
     demfile="elevation.dem",
     frequency="A",
-    polarization="HH",
+    polarization="VV",
     dtype=np.complex64,
     outfile=None,
+    gpu=True,
 ):
     if outfile is None:
         outfile = (
             hdf5_file.replace(".h5", "frequency{}_{}".format(frequency, polarization))
             + ".geo.slc"
         )
-        print(f"Writing results to {outfile}")
+        log.info("Writing results to ", outfile)
     uav = parsers.UavsarHDF5(hdf5_file)
     lam = uav.get_wavelength(frequency)
 
@@ -47,67 +45,81 @@ def main(
     zero_dop_times = uav.get_zero_doppler_times()
 
     # Get DEM and DEM lat/lon data
-    print("Loading DEM:")
+    log.info("Loading DEM:")
     dem = sario.load(demfile)
-    print(f"{dem.shape = }")
+    log.info("dem.shape = ", dem.shape)
     rsc_data = sario.load(demfile + ".rsc")
     lon_arr, lat_arr = latlon.grid(**rsc_data, sparse=True)
     lon_arr = lon_arr.reshape(-1)
     lat_arr = lat_arr.reshape(-1)
 
-    print("Loading SLC:")
+    log.info("Loading SLC:")
     slc = uav.get_slc(frequency, polarization, dtype=dtype)
-    print(f"{slc.shape = }")
-    assert slc.shape == (len(zero_dop_times), len(slant_ranges))
+    log.info("slc.shape = ", slc.shape)
+    # assert slc.shape == (len(zero_dop_times), len(slant_ranges))
 
-    threadsperblock = (16, 16)
-    blockspergrid_x = ceil(dem.shape[0] / threadsperblock[0])
-    blockspergrid_y = ceil(dem.shape[1] / threadsperblock[1])
-    blockspergrid = (blockspergrid_x, blockspergrid_y)
-    print("Geocoding and phase compensating SLC on GPU")
-    print(f"{blockspergrid = }, {threadsperblock = }")
+    if not gpu:
+        out = geocode_cpu(
+            slc,
+            dem,
+            np.deg2rad(lat_arr),
+            np.deg2rad(lon_arr),
+            lam,
+            tt,
+            xx,
+            vv,
+            zero_dop_times,
+            slant_ranges,
+            # max_line=1000,
+        )
+    else:
+        threadsperblock = (16, 16)
+        blockspergrid_x = ceil(dem.shape[0] / threadsperblock[0])
+        blockspergrid_y = ceil(dem.shape[1] / threadsperblock[1])
+        blockspergrid = (blockspergrid_x, blockspergrid_y)
+        log.info("Geocoding and phase compensating SLC on GPU")
+        log.info(
+            "(blocks per grid, threads per block) = ", (blockspergrid, threadsperblock)
+        )
 
-    # # To convert all LLH to XYZ in one step:
-    # xyz_out = np.zeros((3, *dem.shape), dtype=np.float32)
-    # First, convert all lat, lon, height to XYZ vectors
-    # orbit_gpu.llh_to_xyz_arr[blockspergrid, threadsperblock](
-    #     np.deg2rad(lat_arr), np.deg2rad(lon_arr), dem, xyz_out
-    # )
-    # print(xyz_out[:, 4, 4])
+        # # To convert all LLH to XYZ in one step:
+        # xyz_out = np.zeros((3, *dem.shape), dtype=np.float32)
+        # First, convert all lat, lon, height to XYZ vectors
+        # orbit_gpu.llh_to_xyz_arr[blockspergrid, threadsperblock](
+        #     np.deg2rad(lat_arr), np.deg2rad(lon_arr), dem, xyz_out
+        # )
+        # log.info(xyz_out[:, 4, 4])
 
-    out = geocode_cpu(
-        slc,
-        dem,
-        np.deg2rad(lat_arr),
-        np.deg2rad(lon_arr),
-        lam,
-        tt,
-        xx,
-        vv,
-        zero_dop_times,
-        slant_ranges,
-        max_line=1000,
-    )
-
-    # out = np.zeros(dem.shape, dtype=slc.dtype)
-    # geocode_gpu[blockspergrid, threadsperblock](
-    #     slc,
-    #     dem,
-    #     np.deg2rad(lat_arr),
-    #     np.deg2rad(lon_arr),
-    #     lam,
-    #     tt,
-    #     xx,
-    #     vv,
-    #     t_start,
-    #     zero_dop_times,
-    #     slant_ranges,
-    #     out,
-    # )
+        out = np.zeros(dem.shape, dtype=slc.dtype)
+        geocode_gpu[blockspergrid, threadsperblock](
+            slc,
+            dem,
+            np.deg2rad(lat_arr),
+            np.deg2rad(lon_arr),
+            lam,
+            tt,
+            xx,
+            vv,
+            zero_dop_times,
+            slant_ranges,
+            out,
+        )
 
     if outfile:
         out.tofile(outfile)
     return out
+
+
+@njit(nogil=True)
+def interp(slc, az_idx, rg_idx):
+    """Interpolate the image `slc` at az bin (row) `az_idx` over the
+    fractional range bin index `rg_idx`"""
+    rg_floor = int(floor(rg_idx))
+    rg_ceil = int(ceil(rg_idx))
+    pct_to_ceil = rg_idx - floor(rg_idx)
+    return (1 - pct_to_ceil) * slc[az_idx, rg_floor] + pct_to_ceil * slc[
+        az_idx, rg_ceil
+    ]
 
 
 @cuda.jit
@@ -139,11 +151,11 @@ def geocode_gpu(
     # Slant range limits
     r_near, r_far = slant_ranges[0], slant_ranges[-1]
     delta_r = slant_ranges[1] - slant_ranges[0]
-    print("Near, far range, delta_r:", (r_near, r_far, delta_r))
+    log.info("Near, far range, delta_r:", (r_near, r_far, delta_r))
     # azimuth time data
     t_start, t_end = zero_dop_times[0], zero_dop_times[-1]
     pri = zero_dop_times[1] - zero_dop_times[0]
-    print("Start, end pulse times, PRI:", (t_start, t_end, pri))
+    log.info("Start, end pulse times, PRI:", (t_start, t_end, pri))
 
     lat = lat_arr[i]
     lon = lon_arr[j]
@@ -203,11 +215,11 @@ def geocode_cpu(
     # Slant range limits
     r_near, r_far = slant_ranges[0], slant_ranges[-1]
     delta_r = slant_ranges[1] - slant_ranges[0]
-    print("Near, far range, delta_r:", (r_near, r_far, delta_r))
+    log.info("Near, far range, delta_r:", (r_near, r_far, delta_r))
     # azimuth time data
     t_start, t_end = zero_dop_times[0], zero_dop_times[-1]
     pri = zero_dop_times[1] - zero_dop_times[0]
-    print("Start, end pulse times, PRI:", (t_start, t_end, pri))
+    log.info("Start, end pulse times, PRI:", (t_start, t_end, pri))
 
     r_near, r_far = slant_ranges[0], slant_ranges[-1]
 
@@ -217,7 +229,7 @@ def geocode_cpu(
         if i > max_line:
             break
         if not i % 50:
-            print("Line ", i, " / ", nlat)
+            log.info("Line ", i, " / ", nlat)
         for j in range(nlon):
             lon = lon_arr[j]
             h = dem[i, j]
@@ -239,19 +251,3 @@ def geocode_cpu(
             complex_phase = cos(phase) + 1j * sin(phase)
             out[i, j] = slc_interp * complex_phase
     return out
-
-
-if __name__ == "__main__":
-    try:
-        hdf5_file, demfile = sys.argv[1:3]
-    except:
-        hdf5_file, demfile = sys.argv[1], "elevation.dem"
-
-    main(
-        hdf5_file,
-        demfile=demfile,
-        frequency="A",
-        polarization="HH",
-        dtype=np.complex64,
-        outfile=None,
-    )

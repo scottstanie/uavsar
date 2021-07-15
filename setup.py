@@ -2,7 +2,7 @@ import setuptools
 
 
 setuptools.setup(
-    name="query_uavsar",
+    name="uavsar",
     version="0.1.0",
     author="Scott Staniewicz",
     author_email="scott.stanie@utexas.com",
@@ -22,5 +22,6 @@ setuptools.setup(
             "uaquery=query_uavsar:cli",
         ],
     },
+    packages=["geoslc"],
     zip_safe=False,
 )
