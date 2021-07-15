@@ -1,15 +1,73 @@
 import re
-from datetime import datetime
-import os
-import pprint
-import h5py
+import sys
 
 from .constants import C
 from .logger import get_log
 
 log = get_log()
 
-__all__ = ["Uavsar", "UavsarHDF5"]
+if sys.version_info.major == 2:
+    from HTMLParser import HTMLParser
+else:
+    from html.parser import HTMLParser
+
+try:
+    import h5py
+except ImportError:
+    log.info("Can't import h5py,", exc_info=True)
+
+
+
+
+# Filetype of real or complex depends on the polarization for .grd, .mlc
+REAL_POLS = ("HHHH", "HVHV", "VVVV")
+COMPLEX_POLS = ("HHHV", "HHVV", "HVVV")
+CROSS_POLARIZATIONS = REAL_POLS + COMPLEX_POLS
+SINGLE_POLARIZATIONS = ("HH", "HV", "VH", "VV")
+
+
+class LinkFinder(HTMLParser):
+    """Finds EOF download links in aux.sentinel1.eo.esa.int page
+
+    Example page to search:
+    http://step.esa.int/auxdata/orbits/Sentinel-1/POEORB/S1B/2020/10/
+
+    Usage:
+    >>> import requests
+    >>> resp = requests.get(form_url())
+    >>> parser = LinkFinder()
+    >>> parser.feed(resp.text)
+    >>> print(sorted(parser.eof_links)[0])
+    S1B_OPER_AUX_POEORB_OPOD_20201022T111233_V20201001T225942_20201003T005942.EOF.zip
+    """
+
+    def __init__(self, verbose=True, nisar=True, split_products=True):
+        HTMLParser.__init__(self)
+        self.products = []
+        self.links = []
+        self.verbose = verbose
+        self.nisar = nisar
+        self._split_products = split_products
+
+    def handle_starttag(self, tag, attrs):
+        if tag == "a":
+            for name, value in attrs:
+                if name == "href":
+                    self.links.append(value)
+                    if self.verbose:
+                        print(value)
+                    # For the first attempt at gathering product names,
+                    # result is like "/cgi-bin/product.pl?jobName={product}"
+                    if self._split_products:
+                        product = value.split("=")[1]
+                        self.products.append(product)
+                        if self.verbose:
+                            print(product)
+
+    def handle_data(self, data):
+        # This is inside a <small> tag after the NISAR version
+        if not self.nisar and data == "#simulated-nisar #dithered":
+            self.products.pop()
 
 
 class Base(object):
@@ -25,7 +83,7 @@ class Base(object):
             verbose (bool): print extra logging into about file loading
         """
         self.filename = filename
-        self.full_parse()  # Run a parse to check validity of filename
+        self.data_dict = self.full_parse()  # Run a parse to check validity of filename
         self.verbose = verbose
 
     def __str__(self):
@@ -57,11 +115,6 @@ class Base(object):
         else:
             return match.groupdict()
 
-    @property
-    def field_meanings(self):
-        """List the fields returned by full_parse()"""
-        return self.full_parse().keys()
-
     def _get_field(self, fieldname):
         """Pick a specific field based on its name"""
         return self.full_parse()[fieldname]
@@ -69,6 +122,77 @@ class Base(object):
     def __getitem__(self, item):
         """Access properties with uavsar[item] syntax"""
         return self._get_field(item)
+
+
+class Uavsar(Base):
+    """UAVSAR NISAR sample product data reference:
+    https://uavsar.jpl.nasa.gov/science/documents/nisar-sample-products.html
+
+    Uavsar reference for Polsar:
+    https://uavsar.jpl.nasa.gov/science/documents/polsar-format.html
+
+    RPI/ InSAR format reference:
+    https://uavsar.jpl.nasa.gov/science/documents/rpi-format-browse.html
+
+    Example:
+    SanAnd_23511_14128_002_140829_L090_CX_02
+    SanAnd_23511_14128_002_140829_L090_CX_129_02.h5
+    SanAnd_23511_14128_002_140829_L090HH_CX_129A_02.slc
+    SanAnd_23511_14128_002_140829_L090HHVV_CX_129A_02.grd
+
+    Example URL:
+    https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName=SanAnd_23511_14128_002_140829_L090_CX_02
+
+    Naming example:
+    Dthvly_34501_08038_006_080731_L090HH_XX_01.slc
+
+    Dthvly is the site name, 345 degrees is the heading of UAVSAR in flight,
+    with a counter of 01, the flight was the thirty-eighth flight by UAVSAR in
+    2008,this data take was the sixth data take during the flight, the data was
+    acquired on July 31, 2008 (UTC), the frequency band was L-band, pointing at
+    perpendicular to the flight heading (90 degrees counterclockwise), this
+    file contains the HH data, this is the first interation of processing,
+    cross talk calibration has not been applied, and the data type is SLC.
+
+    For downsampled products (3x3 and 5x5), there is an optional extension
+    of _ML3X3 and _ML5X5 tacked onto the end
+
+    Examples:
+        >>> fname = 'Dthvly_34501_08038_006_080731_L090HH_XX_01.slc'
+        >>> parser = Uavsar(fname)
+
+    """
+
+    FILE_REGEX = (
+        r"(?P<target_site>[\w\d]{6})_"
+        # r"(?P<heading>\d{3})(?P<counter>\w+)_" # this is lineID
+        r"(?P<line_id>\d{5})_"
+        # r"(?P<year>\d{2})(?P<flight_number>\d{3})_" # this is FlightID
+        r"(?P<flight_id>\d{5})_"
+        r"(?P<data_take>\d{3})_"
+        r"(?P<date>\d{6})_"
+        r"(?P<band_squint_pol>\w{0,8})_"
+        r"(?P<xtalk>X|C)(?P<dither>[XGD])_"
+        r"(?P<nmode>\w{3,4})?_?"
+        r"(?P<version>\d{2})\.?(?P<ext>\w{2,5})?"
+    )
+    TIME_FMT = "%y%m%d"
+
+    @property
+    def line_id(self):
+        return self._get_field("line_id")
+
+    @property
+    def flight_id(self):
+        return self._get_field("flight_id")
+
+    @property
+    def data_take(self):
+        return self._get_field("data_take")
+
+    @property
+    def date(self):
+        return self._get_field("date")
 
 
 class UavsarHDF5(Base):
