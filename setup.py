@@ -22,6 +22,6 @@ setuptools.setup(
             "uaquery=query_uavsar:cli",
         ],
     },
-    packages=["geoslc"],
+    packages=["geoslc", "PS"],
     zip_safe=False,
 )
