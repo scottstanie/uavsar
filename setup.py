@@ -20,6 +20,7 @@ setuptools.setup(
     entry_points={
         "console_scripts": [
             "uaquery=query_uavsar:cli",
+            "uageocode=geoslc.cli:cli",
         ],
     },
     packages=["geoslc"],
