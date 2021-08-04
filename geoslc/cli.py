@@ -1,11 +1,11 @@
 import argparse
-from geocode_slc import main
+from geoslc.geocode_slc import main
+
 
 def cli():
     p = argparse.ArgumentParser()
     p.add_argument(
         "hdf5_file",
-        type=int,
         help="UAVSAR HDF5 file containing SLCs",
     )
     p.add_argument(
@@ -16,23 +16,22 @@ def cli():
     )
     p.add_argument(
         "--pol",
-        default="vv",
-        choices=["hh", "hv", "vh", "vv"],
+        default="VV",
+        choices=["HH", "HV", "VH", "VV"],
         help="Polarization (default=%(default)s)",
-        type=str.lower,
+        type=str.upper,
     )
     p.add_argument(
         "--frequency",
-        default="a",
-        choices=["a", "b"],
+        default="A",
+        choices=["A", "B"],
         help="Frequency band to use ( choices = %(choices)s, default=%(default)s)",
-        type=str.lower,
+        type=str.upper,
     )
     p.add_argument(
-        "--outname",
+        "--outfile",
         "-o",
         help="File to save output (default = '{hdf5_file}_frequency{frequency}_{pol}.geo.slc')",
-        default=".",
     )
     p.add_argument(
         "--gpu",
