@@ -17,6 +17,8 @@ DATE_DSET = "date"
 AZ_DIM = "az_idx"
 RANGE_DIM = "range_idx"
 
+__all__ = ["create_slc_stack"]
+
 
 def create_slc_stack(
     path=".",
@@ -37,7 +39,7 @@ def create_slc_stack(
 
     mkdir_p(os.path.dirname(outpath))
     if not check_dset(outpath, dset_name, overwrite):
-        log.info("Skipping creation of %s/%s" % outpath, dset_name)
+        log.info("Skipping creation of %s/%s", outpath, dset_name)
         return
 
     h5files = find_h5files(h5path)
