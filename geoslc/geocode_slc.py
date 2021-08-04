@@ -1,7 +1,7 @@
 import numpy as np
 from math import ceil, floor, cos, sin, sqrt
 from numba import njit, prange, cuda
-from download.logger import get_log
+from download.logger import get_log, log_runtime
 
 log = get_log()
 
@@ -9,6 +9,7 @@ from apertools import sario, latlon  # TODO: port just necessary functions
 from . import orbit, orbit_gpu, parsers
 
 
+@log_runtime
 def main(
     hdf5_file,
     demfile="elevation.dem",
@@ -18,12 +19,14 @@ def main(
     outfile=None,
     gpu=True,
 ):
+    frequency = frequency.upper()
+    polarization = polarization.upper()
     if outfile is None:
         outfile = (
             hdf5_file.replace(".h5", "frequency{}_{}".format(frequency, polarization))
             + ".geo.slc"
         )
-        log.info("Writing results to ", outfile)
+        log.info("Writing results to %s", outfile)
     uav = parsers.UavsarHDF5(hdf5_file)
     lam = uav.get_wavelength(frequency)
 
@@ -32,16 +35,23 @@ def main(
 
     # Get range data
     slant_ranges = uav.get_slant_ranges(frequency)
+    # Slant range limits
+    r_near, r_far = slant_ranges[0], slant_ranges[-1]
+    delta_r = slant_ranges[1] - slant_ranges[0]
+    log.info("Near, far range, delta_r: %s, %s, %s", r_near, r_far, delta_r)
 
     # Get azimuth time data
     # prf = uav.get_prf(frequency)
     # pri = uav.get_pri()
     zero_dop_times = uav.get_zero_doppler_times()
+    t_start, t_end = zero_dop_times[0], zero_dop_times[-1]
+    pri = zero_dop_times[1] - zero_dop_times[0]
+    log.info("Start, end pulse times, PRI: %s, %s, %s", t_start, t_end, pri)
 
     # Get DEM and DEM lat/lon data
     log.info("Loading DEM:")
     dem = sario.load(demfile)
-    log.info("dem.shape = ", dem.shape)
+    log.info("dem.shape = %s", dem.shape)
     rsc_data = sario.load(demfile + ".rsc")
     lon_arr, lat_arr = latlon.grid(**rsc_data, sparse=True)
     lon_arr = lon_arr.reshape(-1)
@@ -49,7 +59,7 @@ def main(
 
     log.info("Loading SLC:")
     slc = uav.get_slc(frequency, polarization, dtype=dtype)
-    log.info("slc.shape = ", slc.shape)
+    log.info("slc.shape = %s", slc.shape)
     # assert slc.shape == (len(zero_dop_times), len(slant_ranges))
 
     if not gpu:
@@ -62,8 +72,12 @@ def main(
             tt,
             xx,
             vv,
-            zero_dop_times,
-            slant_ranges,
+            t_start,
+            t_end,
+            pri,
+            r_near,
+            r_far,
+            delta_r,
             # max_line=1000,
         )
     else:
@@ -73,7 +87,9 @@ def main(
         blockspergrid = (blockspergrid_x, blockspergrid_y)
         log.info("Geocoding and phase compensating SLC on GPU")
         log.info(
-            "(blocks per grid, threads per block) = ", (blockspergrid, threadsperblock)
+            "(blocks per grid, threads per block) = ((%s, %s), (%s, %s))",
+            *blockspergrid,
+            *threadsperblock
         )
 
         # # To convert all LLH to XYZ in one step:
@@ -94,8 +110,12 @@ def main(
             tt,
             xx,
             vv,
-            zero_dop_times,
-            slant_ranges,
+            t_start,
+            t_end,
+            pri,
+            r_near,
+            r_far,
+            delta_r,
             out,
         )
 
@@ -126,8 +146,12 @@ def geocode_gpu(
     tt,
     xx,
     vv,
-    zero_dop_times,
-    slant_ranges,
+    t_start,
+    t_end,
+    pri,
+    r_near,
+    r_far,
+    delta_r,
     out,
 ):
     # num_lines = slc.shape[0]
@@ -141,15 +165,6 @@ def geocode_gpu(
         # Skip this thread if it's out of bounds
         # Maybe need more checks if i break into DEM blocks
         return
-
-    # Slant range limits
-    r_near, r_far = slant_ranges[0], slant_ranges[-1]
-    delta_r = slant_ranges[1] - slant_ranges[0]
-    log.info("Near, far range, delta_r:", (r_near, r_far, delta_r))
-    # azimuth time data
-    t_start, t_end = zero_dop_times[0], zero_dop_times[-1]
-    pri = zero_dop_times[1] - zero_dop_times[0]
-    log.info("Start, end pulse times, PRI:", (t_start, t_end, pri))
 
     lat = lat_arr[i]
     lon = lon_arr[j]
@@ -198,32 +213,24 @@ def geocode_cpu(
     tt,
     xx,
     vv,
-    zero_dop_times,
-    slant_ranges,
-    max_line=1000000,
+    t_start,
+    t_end,
+    pri,
+    r_near,
+    r_far,
+    delta_r,
 ):
     nlat = len(lat_arr)
     nlon = len(lon_arr)
     out = np.zeros((nlat, nlon), dtype=slc.dtype)
 
-    # Slant range limits
-    r_near, r_far = slant_ranges[0], slant_ranges[-1]
-    delta_r = slant_ranges[1] - slant_ranges[0]
-    log.info("Near, far range, delta_r:", (r_near, r_far, delta_r))
-    # azimuth time data
-    t_start, t_end = zero_dop_times[0], zero_dop_times[-1]
-    pri = zero_dop_times[1] - zero_dop_times[0]
-    log.info("Start, end pulse times, PRI:", (t_start, t_end, pri))
-
-    r_near, r_far = slant_ranges[0], slant_ranges[-1]
-
     # prange here seems to make it slower when parallel = true?
     for i in prange(nlat):
         lat = lat_arr[i]
-        if i > max_line:
-            break
+        # if i > max_line:
+        # break
         if not i % 50:
-            log.info("Line ", i, " / ", nlat)
+            print("Line ", i, "/", nlat)
         for j in range(nlon):
             lon = lon_arr[j]
             h = dem[i, j]
