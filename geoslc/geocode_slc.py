@@ -5,8 +5,7 @@ from download.logger import get_log, log_runtime
 
 log = get_log()
 
-from apertools import sario, latlon  # TODO: port just necessary functions
-from . import orbit, orbit_gpu, parsers
+from . import orbit, orbit_gpu, parsers, utils
 
 
 @log_runtime
@@ -50,12 +49,9 @@ def main(
 
     # Get DEM and DEM lat/lon data
     log.info("Loading DEM:")
-    dem = sario.load(demfile)
+    dem = utils.load_dem(demfile)
     log.info("dem.shape = %s", dem.shape)
-    rsc_data = sario.load(demfile + ".rsc")
-    lon_arr, lat_arr = latlon.grid(**rsc_data, sparse=True)
-    lon_arr = lon_arr.reshape(-1)
-    lat_arr = lat_arr.reshape(-1)
+    lon_arr, lat_arr = utils.get_latlon_arrs(demfile + ".rsc")
 
     log.info("Loading SLC:")
     slc = uav.get_slc(frequency, polarization, dtype=dtype)
