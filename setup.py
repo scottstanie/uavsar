@@ -16,7 +16,10 @@ setuptools.setup(
         "Intended Audience :: Science/Research",
     ],
     install_requires=["requests"],
-    extras_require={':python_version == "2.7"': ["futures"]},
+    extras_require={
+        ':python_version == "2.7"': ["futures"],
+        "geoslc": ["numpy", "h5py", "numba"],
+    },
     entry_points={
         "console_scripts": [
             "uaquery=query_uavsar:cli",
