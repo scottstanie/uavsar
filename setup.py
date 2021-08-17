@@ -22,10 +22,10 @@ setuptools.setup(
     },
     entry_points={
         "console_scripts": [
-            "uaquery=uaquery.query_uavsar:cli",
-            "uageocode=geoslc.cli:cli",
+            "uaquery=uaquery.cli:cli",
+            "uageocode=uageoslc.cli:cli",
         ],
     },
-    packages=["uageoslc"],
+    packages=["uageoslc", "uaquery"],
     zip_safe=False,
 )

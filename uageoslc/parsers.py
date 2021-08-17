@@ -1,7 +1,7 @@
 import datetime
 from .constants import C
-from download.logger import get_log
-from download.parsers import Base
+from uaquery.logger import get_log
+from uaquery.parsers import Base
 
 log = get_log()
 

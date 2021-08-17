@@ -1,5 +1,5 @@
 import argparse
-from geoslc.geocode_slc import main
+from uageoslc.geocode_slc import main
 
 
 def cli():

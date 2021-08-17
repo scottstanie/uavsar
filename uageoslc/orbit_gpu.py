@@ -1,3 +1,4 @@
+import numba
 from numba import cuda
 from .constants import EARTH_E2, EARTH_SMA
 
@@ -154,17 +155,17 @@ def orbithermite_gpu(tt, xx, vv, t, xout, vout):
         vout: length 3 ndarray, velocity at time `t`
     """
     # Lagrange basis polynomials
-    li = cuda.local.array(4, dtype="float")
+    li = cuda.local.array(4, dtype=numba.float64)
     for i in range(4):
         li[i] = 1.0
     # basis polynomials alpha(t)
-    a = cuda.local.array(4, dtype="float")
+    a = cuda.local.array(4, dtype=numba.float64)
     # basis polynomials beta(t)
-    b = cuda.local.array(4, dtype="float")
+    b = cuda.local.array(4, dtype=numba.float64)
     # derivative of alpha(t)
-    a2 = cuda.local.array(4, dtype="float")
+    a2 = cuda.local.array(4, dtype=numba.float64)
     # derivative of beta(t)
-    b2 = cuda.local.array(4, dtype="float")
+    b2 = cuda.local.array(4, dtype=numba.float64)
 
     n = len(tt)
     for i in range(n):

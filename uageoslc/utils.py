@@ -88,9 +88,10 @@ def _rsc_to_grid(
     x_first=None,
     width=None,
     file_length=None,
+    **kwargs,
 ):
     rows = rows or file_length
     cols = cols or width
-    lon_arr = np.linspace(x_first, x_first + (cols - 1) * x_step, cols).reshape((1, cols))
-    lat_arr = np.linspace(y_first, y_first + (rows - 1) * y_step, rows).reshape((rows, 1))
+    lon_arr = np.linspace(x_first, x_first + (cols - 1) * x_step, cols)
+    lat_arr = np.linspace(y_first, y_first + (rows - 1) * y_step, rows)
     return lon_arr, lat_arr

@@ -1,7 +1,8 @@
 import numpy as np
 from math import ceil, floor, cos, sin, sqrt
+import numba
 from numba import njit, prange, cuda
-from download.logger import get_log, log_runtime
+from uaquery.logger import get_log, log_runtime
 
 log = get_log()
 
@@ -166,13 +167,13 @@ def geocode_gpu(
     lon = lon_arr[j]
     h = dem[i, j]
     # output: into the thread-local xyz
-    xyz_temp = cuda.local.array(3, dtype="float")
+    xyz_temp = cuda.local.array(3, dtype=numba.float64)
     orbit_gpu.llh_to_xyz_single(lat, lon, h, xyz_temp)
 
     # make thread-local containers for sat x/v and LOS vec
-    satx = cuda.local.array(3, dtype="float")
-    satv = cuda.local.array(3, dtype="float")
-    dr_vec = cuda.local.array(3, dtype="float")
+    satx = cuda.local.array(3, dtype=numba.float64)
+    satv = cuda.local.array(3, dtype=numba.float64)
+    dr_vec = cuda.local.array(3, dtype=numba.float64)
     tline, cur_range = orbit_gpu.orbitrangetime_gpu(
         xyz_temp,
         tt,
@@ -225,7 +226,7 @@ def geocode_cpu(
         lat = lat_arr[i]
         # if i > max_line:
         # break
-        if not i % 50:
+        if not i % 100:
             print("Line ", i, "/", nlat)
         for j in range(nlon):
             lon = lon_arr[j]
