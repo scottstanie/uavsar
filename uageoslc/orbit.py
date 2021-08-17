@@ -171,17 +171,15 @@ def orbithermite_scipy(tt, xx, vv, t):
 
 
 @njit(nogil=True)
-# @njit
 def llh_to_xyz(lat, lon, h):
     """Lat, lon (in radians), height to ECEF X,Y,Z"""
     rad_earth = EARTH_SMA / sqrt(1.0 - EARTH_E2 * sin(lat) ** 2)
 
-    xyz = np.zeros((3,), dtype=np.float32)
+    xyz = np.zeros((3,), dtype=np.float64)
     xyz[0] = (rad_earth + h) * cos(lat) * cos(lon)
     xyz[1] = (rad_earth + h) * cos(lat) * sin(lon)
     xyz[2] = (rad_earth * (1.0 - EARTH_E2) + h) * sin(lat)
     return xyz
-
 
 @njit
 def xyz_to_llh_f(xyz):

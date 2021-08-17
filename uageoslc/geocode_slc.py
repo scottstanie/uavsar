@@ -33,14 +33,13 @@ def main(
     # Get orbit time, position, velocity
     tt, xx, vv = uav.get_orbit()
 
-    # Get range data
     slant_ranges = uav.get_slant_ranges(frequency)
-    # Slant range limits
+    # Slant range limits and spacing
     r_near, r_far = slant_ranges[0], slant_ranges[-1]
     delta_r = slant_ranges[1] - slant_ranges[0]
     log.info("Near, far range, delta_r: %s, %s, %s", r_near, r_far, delta_r)
 
-    # Get azimuth time data
+    # Get azimuth time data: limits, spacing (pulse repitition interval)
     # prf = uav.get_prf(frequency)
     # pri = uav.get_pri()
     zero_dop_times = uav.get_zero_doppler_times()
@@ -75,7 +74,6 @@ def main(
             r_near,
             r_far,
             delta_r,
-            # max_line=1000,
         )
     else:
         threadsperblock = (16, 16)
@@ -88,14 +86,6 @@ def main(
             *blockspergrid,
             *threadsperblock
         )
-
-        # # To convert all LLH to XYZ in one step:
-        # xyz_out = np.zeros((3, *dem.shape), dtype=np.float32)
-        # First, convert all lat, lon, height to XYZ vectors
-        # orbit_gpu.llh_to_xyz_arr[blockspergrid, threadsperblock](
-        #     np.deg2rad(lat_arr), np.deg2rad(lon_arr), dem, xyz_out
-        # )
-        # log.info(xyz_out[:, 4, 4])
 
         out = np.zeros(dem.shape, dtype=slc.dtype)
         geocode_gpu[blockspergrid, threadsperblock](
@@ -203,11 +193,12 @@ def geocode_gpu(
     az_idx = (tline - t_start) / pri
     rg_idx = (cur_range - r_near) / delta_r
 
-    # Interpolate between range, add the phase compensation for range
+    # Interpolate between az/range
     slc_interp = interp(slc, az_idx, rg_idx)
+    # add the phase compensation for range
     phase = 4.0 * 3.1415926535 * cur_range / lam
-    complex_phase = cos(phase) + 1j * sin(phase)
-    out[i, j] = slc_interp * complex_phase
+    phase_cpx = cos(phase) + 1j * sin(phase)
+    out[i, j] = slc_interp * phase_cpx
 
 
 # @njit(parallel=True)  # can't figure out why parallel is slower...
@@ -235,7 +226,7 @@ def geocode_cpu(
     # prange here seems to make it slower when parallel = true?
     for i in prange(nlat):
         lat = lat_arr[i]
-        # if i > 500:
+        # if i > 400:
         #     break
         if not i % 100:
             print("Line ", i, "/", nlat)
@@ -257,7 +248,8 @@ def geocode_cpu(
 
             # Interpolate az/range, add the phase compensation for range
             slc_interp = interp(slc, az_idx, rg_idx)
+            # add the phase compensation for range
             phase = 4.0 * 3.1415926535 * cur_range / lam
-            complex_phase = cos(phase) + 1j * sin(phase)
-            out[i, j] = slc_interp * complex_phase
+            phase_cpx = cos(phase) + 1j * sin(phase)
+            out[i, j] = slc_interp * phase_cpx
     return out
