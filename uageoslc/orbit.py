@@ -5,7 +5,7 @@ from math import sin, cos, sqrt
 from numba import njit
 
 
-@njit(fastmath=True, nogil=True)
+@njit(nogil=True)
 def orbitrangetime(
     xyz, tt, xx, vv, tline0=None, satx0=None, satv0=None, tol=5e-9, max_iter=100
 ):
@@ -61,7 +61,7 @@ def orbitrangetime(
     return tline, dr  # r
 
 
-@njit(fastmath=True, nogil=True)
+@njit(nogil=True)
 def intp_orbit(tt, xx, vv, t):
     # if np.isposinf(t) or np.isneginf(t) or np.isnan(t):
     #     return None, None
@@ -91,7 +91,7 @@ def intp_orbit(tt, xx, vv, t):
     return satx, satv
 
 
-@njit(fastmath=True, nogil=True)
+@njit(nogil=True)
 def orbithermite(tt, xx, vv, t):
     """orbithermite - hermite polynomial interpolation of orbits
 
@@ -181,7 +181,8 @@ def llh_to_xyz(lat, lon, h):
     xyz[2] = (rad_earth * (1.0 - EARTH_E2) + h) * sin(lat)
     return xyz
 
-@njit
+
+@njit(nogil=True)
 def xyz_to_llh_f(xyz):
     """Copy from fortran code"""
     r_a = EARTH_SMA
