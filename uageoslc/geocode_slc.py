@@ -125,12 +125,22 @@ def main(
 def interp(slc, az_idx, rg_idx):
     """Interpolate the image `slc` at az bin (row) `az_idx` over the
     fractional range bin index `rg_idx`"""
+    az_floor = int(floor(az_idx))
+    az_ceil = int(ceil(az_idx))
+    pct_to_ceil_az = az_idx - floor(az_idx)
     rg_floor = int(floor(rg_idx))
     rg_ceil = int(ceil(rg_idx))
-    pct_to_ceil = rg_idx - floor(rg_idx)
-    return (1 - pct_to_ceil) * slc[az_idx, rg_floor] + pct_to_ceil * slc[
-        az_idx, rg_ceil
-    ]
+    pct_to_ceil_rg = rg_idx - floor(rg_idx)
+
+    # Interpolate in the range direction for floor, ceil of az index
+    rg_interped_low = (1 - pct_to_ceil_rg) * slc[
+        az_floor, rg_floor
+    ] + pct_to_ceil_rg * slc[az_floor, rg_ceil]
+    rg_interped_high = (1 - pct_to_ceil_rg) * slc[
+        az_ceil, rg_floor
+    ] + pct_to_ceil_rg * slc[az_ceil, rg_ceil]
+    # Then interpolate these results in the azimuth direction
+    return (1 - pct_to_ceil_az) * rg_interped_low + pct_to_ceil_az * rg_interped_high
 
 
 @cuda.jit
@@ -240,10 +250,11 @@ def geocode_cpu(
             if cur_range < r_near or cur_range > r_far:
                 continue
 
-            az_idx = round((tline - t_start) / pri)
+            # Get the fractional indices for range and azimuth
+            az_idx = (tline - t_start) / pri
             rg_idx = (cur_range - r_near) / delta_r
 
-            # Interpolate between range, add the phase compensation for range
+            # Interpolate az/range, add the phase compensation for range
             slc_interp = interp(slc, az_idx, rg_idx)
             phase = 4.0 * 3.1415926535 * cur_range / lam
             complex_phase = cos(phase) + 1j * sin(phase)
