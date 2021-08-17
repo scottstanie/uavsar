@@ -304,7 +304,7 @@ def geocode_cpu(
     )
 
     # Process one row at a time in parallel
-    par = Parallel(n_jobs=20)
+    par = Parallel(n_jobs=min(os.cpu_count(), 20))
     par(
         delayed(_geocode_cpu_row)(
             i,

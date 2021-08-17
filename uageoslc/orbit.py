@@ -6,6 +6,11 @@ from numba import njit
 
 
 @njit(nogil=True)
+def dot(vec1, vec2):
+    return vec1[0] * vec2[0] + vec1[1] * vec2[1] + vec1[2] * vec2[2]
+
+
+@njit(nogil=True)
 def orbitrangetime(
     xyz, tt, xx, vv, tline0=None, satx0=None, satv0=None, tol=5e-9, max_iter=100
 ):
@@ -47,8 +52,8 @@ def orbitrangetime(
 
         dr = xyz - satx
 
-        fn = np.dot(dr, satv)
-        fnprime = -np.dot(satv, satv)
+        fn = dot(dr, satv)
+        fnprime = -dot(satv, satv)
 
         tline = tline - fn / fnprime
 
@@ -144,29 +149,6 @@ def orbithermite(tt, xx, vv, t):
         for i in range(n):
             xout[j] += a[i] * xx[i][j] + b[i] * vv[i][j]
             vout[j] += a2[i] * xx[i][j] + b2[i] * vv[i][j]
-    return xout, vout
-
-
-def orbithermite_scipy(tt, xx, vv, t):
-    """Hermite polynomial interpolation of orbits,
-    using scipy.interpolate.CubicHermiteSpline
-
-    Args:
-        tt - 4-vector of times for each of the above data points
-        xx - 3x4 matrix of positions at four times
-        xv - 3x4 matrix of velocities
-        t - time to interpolate orbit to
-
-    Outputs
-        xout: length 3 ndarray, position at time `t`
-        vout: length 3 ndarray, velocity at tim:
-    """
-    from scipy.interpolate import CubicHermiteSpline
-
-    x_intp = CubicHermiteSpline(tt[:4], xx[:4], vv[:4])
-    xout = x_intp(t)
-    v_intp = x_intp.derivative()
-    vout = v_intp(t)
     return xout, vout
 
 
