@@ -53,6 +53,8 @@ def main(
 
     # Get DEM and DEM lat/lon data
     lon_arr, lat_arr = utils.get_latlon_arrs(demfile + ".rsc")
+    lat_arr = np.deg2rad(lat_arr)
+    lon_arr = np.deg2rad(lon_arr)
 
     log.info("Loading SLC:")
     # TODO: ever need to dump to flat file parts at a time?
@@ -62,58 +64,23 @@ def main(
     # assert slc.shape == (len(zero_dop_times), len(slant_ranges))
 
     if not gpu:
-
-        # Storing temporary output as a memory map
-        folder = "./joblib_memmap"
-        try:
-            os.mkdir(folder)
-        except FileExistsError:
-            pass
-        tmp_slc = os.path.join(folder, "tmp.slc")
-        log.info("Dumping SLC to %s", tmp_slc)
-        slc.tofile(tmp_slc)
-        log.info("Memmapping SLC and DEM")
-        slc = np.memmap(tmp_slc, dtype=slc.dtype, shape=slc.shape, mode="r")
-        dem = np.memmap(
-            demfile, dtype=np.int16, shape=(len(lat_arr), len(lon_arr)), mode="r"
+        # Call wrapper for parallel CPU version
+        out = geocode_cpu(
+            slc,
+            demfile,
+            lat_arr,
+            lon_arr,
+            lam,
+            tt,
+            xx,
+            vv,
+            t_start,
+            t_end,
+            pri,
+            r_near,
+            r_far,
+            delta_r,
         )
-
-        output_filename_memmap = os.path.join(folder, "output_memmap")
-        out = np.memmap(
-            output_filename_memmap, dtype=slc.dtype, shape=dem.shape, mode="w+"
-        )
-        # won't work for shared writing
-        # out = np.zeros(dem.shape, dtype=slc.dtype)
-
-        # Process one row at a time in parallel
-        par = Parallel(n_jobs=20)
-        par(
-            delayed(geocode_cpu)(
-                i,
-                slc,
-                dem,
-                np.deg2rad(lat_arr),
-                np.deg2rad(lon_arr),
-                lam,
-                tt,
-                xx,
-                vv,
-                t_start,
-                t_end,
-                pri,
-                r_near,
-                r_far,
-                delta_r,
-                out,
-            )
-            # for i in range(1000)
-            for i in range(dem.shape[0])
-        )
-        # out = np.vstack(rows)
-        try:
-            shutil.rmtree(folder)
-        except:  # noqa
-            log.warning("Could not clean-up automatically.")
     else:
         log.info("Loading DEM:")
         dem = utils.load_dem(demfile)
@@ -134,8 +101,8 @@ def main(
         geocode_gpu[blockspergrid, threadsperblock](
             slc,
             dem,
-            np.deg2rad(lat_arr),
-            np.deg2rad(lon_arr),
+            lat_arr,
+            lon_arr,
             lam,
             tt,
             xx,
@@ -246,8 +213,8 @@ def geocode_gpu(
     out[i, j] = slc_interp * phase_cpx
 
 
-@njit
-def geocode_cpu(
+# @njit
+def _geocode_cpu_row(
     i,
     slc,
     dem,
@@ -297,3 +264,72 @@ def geocode_cpu(
         row[j] = slc_interp * phase_cpx
     out[i, :] = row
     # return row
+
+
+def geocode_cpu(
+    slc,
+    demfile,
+    lat_arr,
+    lon_arr,
+    lam,
+    tt,
+    xx,
+    vv,
+    t_start,
+    t_end,
+    pri,
+    r_near,
+    r_far,
+    delta_r,
+):
+    # Storing temporary output as a memory map
+    folder = "./joblib_memmap"
+    try:
+        os.mkdir(folder)
+    except FileExistsError:
+        pass
+    tmp_slc = os.path.join(folder, "tmp.slc")
+    log.info("Dumping SLC to %s", tmp_slc)
+    slc.tofile(tmp_slc)
+    log.info("Memmapping SLC and DEM")
+    slc = np.memmap(tmp_slc, dtype=slc.dtype, shape=slc.shape, mode="r")
+    dem = np.memmap(
+        demfile, dtype=np.int16, shape=(len(lat_arr), len(lon_arr)), mode="r"
+    )
+
+    output_filename_memmap = os.path.join(folder, "output_memmap")
+    # memmap for shared writing
+    out = np.memmap(
+        output_filename_memmap, dtype=slc.dtype, shape=dem.shape, mode="w+"
+    )
+
+    # Process one row at a time in parallel
+    par = Parallel(n_jobs=20)
+    par(
+        delayed(_geocode_cpu_row)(
+            i,
+            slc,
+            dem,
+            lat_arr,
+            lon_arr,
+            lam,
+            tt,
+            xx,
+            vv,
+            t_start,
+            t_end,
+            pri,
+            r_near,
+            r_far,
+            delta_r,
+            out,
+        )
+        # for i in range(1000)
+        for i in range(dem.shape[0])
+    )
+    # out = np.vstack(rows)
+    try:
+        shutil.rmtree(folder)
+    except:  # noqa
+        log.warning("Could not clean-up automatically.")
+    return out

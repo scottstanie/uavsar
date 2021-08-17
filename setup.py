@@ -18,7 +18,7 @@ setuptools.setup(
     install_requires=["requests"],
     extras_require={
         ':python_version == "2.7"': ["futures"],
-        "geoslc": ["numpy", "h5py", "numba"],
+        "geoslc": ["numpy", "h5py", "numba", "joblib"],
     },
     entry_points={
         "console_scripts": [
