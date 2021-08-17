@@ -16,13 +16,14 @@ RSC_KEY_TYPES = [
 ]
 
 
-def load_rsc(filename, lower=False, **kwargs):
+def load_rsc(filename, **kwargs):
     """Loads and parses the .dem.rsc file
+
+    Will convert all keys to lowercase
 
     Args:
         filename (str) path to either the .dem or .dem.rsc file.
             Function will add .rsc to path if passed .dem file
-        lower (bool): make keys of the dict lowercase
 
     Returns:
         dict: dem.rsc file parsed out, keys are all caps
@@ -54,8 +55,6 @@ def load_rsc(filename, lower=False, **kwargs):
                 if line.startswith(field.upper()):
                     output_data[field] = num_type(line.split()[1])
 
-    if lower:
-        output_data = {k.lower(): d for k, d in output_data.items()}
     return output_data
 
 
@@ -95,3 +94,46 @@ def _rsc_to_grid(
     lon_arr = np.linspace(x_first, x_first + (cols - 1) * x_step, cols)
     lat_arr = np.linspace(y_first, y_first + (rows - 1) * y_step, rows)
     return lon_arr, lat_arr
+
+
+def take_looks(arr, row_looks, col_looks, separate_complex=False, **kwargs):
+    """Downsample a numpy matrix by summing blocks of (row_looks, col_looks)
+
+    Cuts off values if the size isn't divisible by num looks
+
+    NOTE: For complex data, looks on the magnitude are done separately
+    from looks on the phase
+
+    Args:
+        arr (ndarray) 2D array of an image
+        row_looks (int) the reduction rate in row direction
+        col_looks (int) the reduction rate in col direction
+        separate_complex (bool): take looks on magnitude and phase separately
+            Better to preserve the look of the magnitude
+
+    Returns:
+        ndarray, size = ceil(rows / row_looks, cols / col_looks)
+    """
+    if row_looks == 1 and col_looks == 1:
+        return arr
+    if np.iscomplexobj(arr) and separate_complex:
+        mag_looked = take_looks(np.abs(arr), row_looks, col_looks)
+        phase_looked = take_looks(np.angle(arr), row_looks, col_looks)
+        return mag_looked * np.exp(1j * phase_looked)
+
+    rows, cols = arr.shape
+    new_rows = rows // row_looks
+    new_cols = cols // col_looks
+
+    row_cutoff = rows % row_looks
+    col_cutoff = cols % col_looks
+
+    if row_cutoff != 0:
+        arr = arr[:-row_cutoff, :]
+    if col_cutoff != 0:
+        arr = arr[:, :-col_cutoff]
+    # For taking the mean, treat integers as floats
+    if np.issubdtype(arr.dtype, np.integer):
+        arr = arr.astype("float")
+
+    return np.mean(arr.reshape(new_rows, row_looks, new_cols, col_looks), axis=(3, 1))
