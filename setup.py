@@ -10,7 +10,6 @@ setuptools.setup(
     url="https://github.com/scottstanie/uavsar",
     classifiers=[
         "Programming Language :: Python",
-        "Programming Language :: C",
         "License :: OSI Approved :: MIT License",
         "Topic :: Scientific/Engineering",
         "Intended Audience :: Science/Research",
