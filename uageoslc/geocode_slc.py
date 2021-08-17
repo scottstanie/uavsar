@@ -123,11 +123,12 @@ def main(
 
 @njit(nogil=True)
 def interp(slc, az_idx, rg_idx):
-    """Interpolate the image `slc` at az bin (row) `az_idx` over the
-    fractional range bin index `rg_idx`"""
+    """Interpolate the image `slc` at fractional az bin (row) `az_idx`
+    and fractional range bin index `rg_idx`"""
     az_floor = int(floor(az_idx))
     az_ceil = int(ceil(az_idx))
     pct_to_ceil_az = az_idx - floor(az_idx)
+
     rg_floor = int(floor(rg_idx))
     rg_ceil = int(ceil(rg_idx))
     pct_to_ceil_rg = rg_idx - floor(rg_idx)
@@ -199,7 +200,7 @@ def geocode_gpu(
     if cur_range < r_near or cur_range > r_far:
         return
 
-    az_idx = round((tline - t_start) / pri)
+    az_idx = (tline - t_start) / pri
     rg_idx = (cur_range - r_near) / delta_r
 
     # Interpolate between range, add the phase compensation for range
@@ -234,8 +235,8 @@ def geocode_cpu(
     # prange here seems to make it slower when parallel = true?
     for i in prange(nlat):
         lat = lat_arr[i]
-        # if i > max_line:
-        # break
+        # if i > 500:
+        #     break
         if not i % 100:
             print("Line ", i, "/", nlat)
         for j in range(nlon):
