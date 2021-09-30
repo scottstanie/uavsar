@@ -8,7 +8,7 @@ Downloading the data requires having [registered for an account](https://uavsar.
 
 ## Examples
 
-To download all 20 MHz data as HDF5 products for one flight over the Central Valley:
+To download all 20 MHz data as HDF5 products for [one flight over the Central Valley](https://uavsar.jpl.nasa.gov/cgi-bin/product.pl?jobName=Snjoaq_14511_13129_010_130719_L090_CX_02#related):
 
 ```bash
 uaquery 14511 --nisar-mode 129a --file-type h5
