@@ -4,6 +4,8 @@ Contains two tools for working with [UAVSAR data](uavsar.jpl.nasa.gov/)
 
 Made for downloading the [NISAR-simulated products](https://uavsar.jpl.nasa.gov/science/documents/nisar-sample-products.html) for UAVSAR, but can download any PolSAR images by not specifying `--nisar-mode`.
 
+Downloading the data requires having [registered for an account](https://uavsar.jpl.nasa.gov/cgi-bin/register.pl). You will need to have a ~/.netrc file with the username an password, but as long as you have an account, the tool will collect and save your username/password for subsequent downloads.
+
 ## Examples
 
 To download all 20 MHz data as HDF5 products for one flight over the Central Valley:
