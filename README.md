@@ -2,7 +2,7 @@ Contains two tools for working with [UAVSAR data](uavsar.jpl.nasa.gov/)
 
 # Query and download tool: `uaquery`
 
-Made for downloading the [NISAR-simulated products]() for UAVSAR, but can download any PolSAR images by not specifying `--nisar-mode`.
+Made for downloading the [NISAR-simulated products](https://uavsar.jpl.nasa.gov/science/documents/nisar-sample-products.html) for UAVSAR, but can download any PolSAR images by not specifying `--nisar-mode`.
 
 ## Examples
 
