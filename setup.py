@@ -5,7 +5,7 @@ setuptools.setup(
     name="uavsar",
     version="0.1.0",
     author="Scott Staniewicz",
-    author_email="scott.stanie@utexas.com",
+    author_email="scott.stanie@gmail.com",
     description="Query and download UAVSAR PolSAR products",
     url="https://github.com/scottstanie/uavsar",
     classifiers=[
